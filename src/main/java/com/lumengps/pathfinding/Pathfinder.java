@@ -47,25 +47,22 @@ public final class Pathfinder {
     /**
      * Starts an asynchronous A* computation from {@code start} to {@code goal}.
      *
-     * <p>If a walkable path is found within the node/time limits, {@code callback}
-     * receives a {@link PathResult} with {@code isFallback = false}.
-     * Otherwise a straight crow-fly route is returned with {@code isFallback = true}
-     * so the player always gets <em>some</em> directional guidance.
-     *
-     * @param world    Client world used for block queries (read-only).
-     * @param start    Player's current block position.
-     * @param goal     Target waypoint block position.
-     * @param callback Invoked on the <em>main client thread</em> with the result.
+     * @param world         Client world used for block queries (read-only).
+     * @param start         Player's current block position.
+     * @param goal          Target waypoint block position.
+     * @param isElytraMode  If true, the pathfinder will allow air-based movement.
+     * @param callback      Invoked on the <em>main client thread</em> with the result.
      */
     public static void computeAsync(BlockGetter world,
                                     BlockPos start,
                                     BlockPos goal,
+                                    boolean isElytraMode,
                                     Consumer<PathResult> callback) {
 
         Thread.ofVirtual()
                 .name("lumengps-pathfinder")
                 .start(() -> {
-                    PathResult result = runAStar(world, start, goal);
+                    PathResult result = runAStar(world, start, goal, isElytraMode);
                     Minecraft.getInstance().execute(() -> callback.accept(result));
                 });
     }
@@ -74,7 +71,7 @@ public final class Pathfinder {
     // Core A* implementation
     // -----------------------------------------------------------------------
 
-    private static PathResult runAStar(BlockGetter world, BlockPos start, BlockPos goal) {
+    private static PathResult runAStar(BlockGetter world, BlockPos start, BlockPos goal, boolean isElytraMode) {
         long deadline = System.currentTimeMillis() + MAX_TIME_MS;
 
         PriorityQueue<PathNode> open   = new PriorityQueue<>();
@@ -91,10 +88,8 @@ public final class Pathfinder {
 
         while (!open.isEmpty() && explored < MAX_NODES) {
 
-            // Check wall-clock limit every 256 iterations (cheap modulo-free check).
             if ((explored & 0xFF) == 0 && System.currentTimeMillis() > deadline) {
-                LumenGPS.LOGGER.warn("[LumenGPS] A* timed out after {}ms — crow-fly fallback.", MAX_TIME_MS);
-                break; // break instead of return, so we can use closestNode
+                break;
             }
 
             PathNode current = open.poll();
@@ -107,16 +102,19 @@ public final class Pathfinder {
                 closestNode = current;
             }
 
-            // Goal reached (or close enough) — reconstruct and return the real path.
-            if (current.h <= 3.0) {
+            if (current.h <= (isElytraMode ? 5.0 : 3.0)) {
                 List<Vec3> route = interpolate(reconstructPath(current));
-                LumenGPS.LOGGER.info("[LumenGPS] A* found path in {} nodes, {} points.", explored, route.size());
                 return new PathResult(route, false);
             }
 
-            for (BlockPos nb : getNeighbours(current.pos)) {
+            for (BlockPos nb : getNeighbours(current.pos, isElytraMode)) {
                 if (closed.contains(nb)) continue;
-                if (!BlockUtil.isWalkable(world, nb)) continue;
+                
+                if (isElytraMode) {
+                    if (!BlockUtil.isFlyable(world, nb)) continue;
+                } else {
+                    if (!BlockUtil.isWalkable(world, nb)) continue;
+                }
 
                 double newG = current.g + distance(current.pos, nb);
                 if (newG < bestG.getOrDefault(nb, Double.MAX_VALUE)) {
@@ -126,13 +124,9 @@ public final class Pathfinder {
             }
         }
 
-        LumenGPS.LOGGER.warn("[LumenGPS] A* exhausted/timed out {} nodes.", explored);
-
-        // If we got reasonably close or made progress, return the partial path so the user isn't totally lost.
-        // If the closest node is just the start, fallback to crow-fly.
         if (closestNode != null && minH < heuristic(start, goal) - 5.0) {
             List<Vec3> partialPath = interpolate(reconstructPath(closestNode));
-            return new PathResult(partialPath, true); // true = fallback message will be shown
+            return new PathResult(partialPath, true);
         }
 
         return crowFlyFallback(start, goal);
@@ -187,32 +181,40 @@ public final class Pathfinder {
 
     /**
      * Returns the candidate neighbour positions for {@code pos}.
-     *
-     * <ul>
-     *   <li>4 cardinal directions at the same Y (flat).</li>
-     *   <li>+1 and +2 Y step-up per direction (climbs hills/slabs).</li>
-     *   <li>−1, −2 and −3 Y step-down per direction (descends ledges/falls).</li>
-     * </ul>
-     * Total: 4 × 6 = 24 candidates.
      */
-    private static List<BlockPos> getNeighbours(BlockPos pos) {
-        List<BlockPos> neighbours = new ArrayList<>(24);
-        int[][] cardinals = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    private static List<BlockPos> getNeighbours(BlockPos pos, boolean isElytraMode) {
+        if (isElytraMode) {
+            // Flight: 26 neighbours in a 3x3x3 cube around the current position.
+            // This allows diagonal and vertical movement in one step.
+            List<BlockPos> neighbours = new ArrayList<>(26);
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                        neighbours.add(pos.offset(dx, dy, dz));
+                    }
+                }
+            }
+            return neighbours;
+        } else {
+            // Walking: 4 cardinal directions with step-up/down logic.
+            List<BlockPos> neighbours = new ArrayList<>(24);
+            int[][] cardinals = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
-        for (int[] d : cardinals) {
-            int nx = pos.getX() + d[0];
-            int nz = pos.getZ() + d[1];
-            int y  = pos.getY();
+            for (int[] d : cardinals) {
+                int nx = pos.getX() + d[0];
+                int nz = pos.getZ() + d[1];
+                int y  = pos.getY();
 
-            neighbours.add(new BlockPos(nx, y,     nz)); // flat
-            neighbours.add(new BlockPos(nx, y + 1, nz)); // step up 1
-            neighbours.add(new BlockPos(nx, y + 2, nz)); // step up 2
-            neighbours.add(new BlockPos(nx, y - 1, nz)); // step down 1
-            neighbours.add(new BlockPos(nx, y - 2, nz)); // step down 2
-            neighbours.add(new BlockPos(nx, y - 3, nz)); // step down 3 (safe fall)
+                neighbours.add(new BlockPos(nx, y,     nz)); // flat
+                neighbours.add(new BlockPos(nx, y + 1, nz)); // step up 1
+                neighbours.add(new BlockPos(nx, y + 2, nz)); // step up 2
+                neighbours.add(new BlockPos(nx, y - 1, nz)); // step down 1
+                neighbours.add(new BlockPos(nx, y - 2, nz)); // step down 2
+                neighbours.add(new BlockPos(nx, y - 3, nz)); // step down 3
+            }
+            return neighbours;
         }
-
-        return neighbours;
     }
 
     /** Walks parent pointers to build the ordered path from start → goal. */

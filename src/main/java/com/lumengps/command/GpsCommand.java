@@ -318,16 +318,21 @@ public final class GpsCommand {
             return 0;
         }
 
+        // --- Elytra Detection ---
+        // If the player is wearing an Elytra, we enable flight-mode pathfinding.
+        boolean isElytraMode = source.getPlayer().getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).is(net.minecraft.world.item.Items.ELYTRA);
+        String finalStyle = (isElytraMode && style.equals("glow")) ? "end" : style;
+
         source.sendFeedback(Component.literal(PREFIX)
                 .append(Component.translatable("lumengps.command.calculating_route", name)));
 
-        Pathfinder.computeAsync(world, start, goal, (PathResult result) -> {
+        Pathfinder.computeAsync(world, start, goal, isElytraMode, (PathResult result) -> {
             if (result.isEmpty()) {
                 source.sendError(Component.literal(PREFIX)
                         .append(Component.translatable("lumengps.command.route_not_found", name)));
                 return;
             }
-            GpsRenderer.getInstance().setRoute(result.points(), style);
+            GpsRenderer.getInstance().setRoute(result.points(), name, goal.getCenter(), isElytraMode, finalStyle);
             if (result.isFallback()) {
                 source.sendFeedback(Component.literal(PREFIX)
                         .append(Component.translatable("lumengps.command.route_blocked_fallback", name, String.valueOf(result.points().size()))));

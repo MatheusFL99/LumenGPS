@@ -2,6 +2,7 @@ package com.lumengps;
 
 import com.lumengps.command.GpsCommand;
 import com.lumengps.renderer.GpsRenderer;
+import com.lumengps.renderer.GpsHud;
 import com.lumengps.data.WaypointManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
@@ -29,10 +30,14 @@ import java.util.regex.Pattern;
 public class LumenGPSClient implements ClientModInitializer {
 
     private static float lastHealth = -1;
+    private static boolean lastWasElytra = false;
 
     @Override
     public void onInitializeClient() {
         LumenGPS.LOGGER.info("[LumenGPS] Client initializing…");
+
+        // Register HUD rendering
+        GpsHud.register();
 
         // Register /gps commands (client-side — works on any server without server-side mod).
         ClientCommandRegistrationCallback.EVENT.register(GpsCommand::register);
@@ -75,9 +80,10 @@ public class LumenGPSClient implements ClientModInitializer {
             GpsRenderer.getInstance().clear();
         });
 
-        // Auto-Death Waypoint Tracker
+        // Auto-Death Waypoint Tracker & Armor Change Detection
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null) {
+                // 1. Health check for death waypoint
                 float health = client.player.getHealth();
                 if (health <= 0 && lastHealth > 0) {
                     BlockPos pos = BlockPos.containing(client.player.position());
@@ -87,8 +93,47 @@ public class LumenGPSClient implements ClientModInitializer {
                             .append(Component.translatable("lumengps.command.death_waypoint_saved")));
                 }
                 lastHealth = health;
+
+                // 2. Armor check for Elytra mode hot-swapping
+                boolean isCurrentlyElytra = client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).is(net.minecraft.world.item.Items.ELYTRA);
+                if (isCurrentlyElytra != lastWasElytra) {
+                    lastWasElytra = isCurrentlyElytra;
+                    if (GpsRenderer.getInstance().isActive()) {
+                        recalculateRoute(client, isCurrentlyElytra);
+                    }
+                }
             } else {
                 lastHealth = -1;
+                lastWasElytra = false;
+            }
+        });
+    }
+
+    /**
+     * Recalculates the active route to account for change in movement mode (walking vs flight).
+     */
+    private void recalculateRoute(Minecraft client, boolean isElytraMode) {
+        GpsRenderer renderer = GpsRenderer.getInstance();
+        String name = renderer.getTargetName();
+        net.minecraft.world.phys.Vec3 target = renderer.getTargetPos();
+        String style = renderer.getActiveStyle();
+
+        if (name == null || target == null) return;
+
+        BlockPos goal = BlockPos.containing(target);
+        BlockPos start = BlockPos.containing(client.player.position());
+
+        // Update style automatically if using defaults
+        String styleToUse = style;
+        if (isElytraMode && style.equals("glow")) styleToUse = "end";
+        if (!isElytraMode && style.equals("end")) styleToUse = "glow";
+        final String finalStyle = styleToUse;
+
+        com.lumengps.pathfinding.Pathfinder.computeAsync(client.level, start, goal, isElytraMode, result -> {
+            if (!result.isEmpty()) {
+                GpsRenderer.getInstance().setRoute(result.points(), name, target, isElytraMode, finalStyle);
+                client.player.sendSystemMessage(Component.literal("§b[LumenGPS]§r ")
+                        .append(Component.translatable(isElytraMode ? "lumengps.command.flight_mode_active" : "lumengps.command.walk_mode_active")));
             }
         });
     }

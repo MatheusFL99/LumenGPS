@@ -29,5 +29,7 @@
   "lumengps.command.list.go_hint": "Click to navigate to '%s'",
   "lumengps.command.list.share_hint": "Click to share '%s' in chat",
   "lumengps.command.list.remove_hint": "Click to delete waypoint '%s'",
-  "lumengps.command.help.share": "§b/gps share <name>§r - Shares the waypoint in public chat."
+  "lumengps.command.help.share": "§b/gps share <name>§r - Shares the waypoint in public chat.",
+  "lumengps.command.flight_mode_active": "Flight Mode activated! Recalculating aerial route...",
+  "lumengps.command.walk_mode_active": "Walk Mode activated! Recalculating ground route..."
 }

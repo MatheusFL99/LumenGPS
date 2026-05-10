@@ -29,5 +29,7 @@
   "lumengps.command.list.go_hint": "Clique para navegar até '%s'",
   "lumengps.command.list.share_hint": "Clique para compartilhar '%s' no chat",
   "lumengps.command.list.remove_hint": "Clique para deletar o waypoint '%s'",
-  "lumengps.command.help.share": "§b/gps share <nome>§r - Compartilha o waypoint no chat público."
+  "lumengps.command.help.share": "§b/gps share <nome>§r - Compartilha o waypoint no chat público.",
+  "lumengps.command.flight_mode_active": "Modo Voo ativado! Recalculando rota aérea...",
+  "lumengps.command.walk_mode_active": "Modo Caminhada ativado! Recalculando rota terrestre..."
 }

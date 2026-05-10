@@ -79,4 +79,12 @@ public final class BlockUtil {
         VoxelShape shape = world.getBlockState(pos).getCollisionShape(world, pos);
         return !shape.isEmpty();
     }
+
+    /**
+     * Returns {@code true} when a player can fly through {@code pos}.
+     * Only checks if the space is passable (no collision).
+     */
+    public static boolean isFlyable(BlockGetter world, BlockPos pos) {
+        return isPassable(world, pos) && isPassable(world, pos.above());
+    }
 }

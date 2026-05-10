@@ -73,6 +73,10 @@ public final class GpsRenderer {
     /** Tick counter used to throttle particle spawning. */
     private int tickCounter = 0;
 
+    private String targetName = null;
+    private Vec3 targetPos = null;
+    private boolean isElytra = false;
+
     private GpsRenderer() {}
 
     // -----------------------------------------------------------------------
@@ -83,24 +87,49 @@ public final class GpsRenderer {
      * Sets the active route. Pass an empty list (or call {@link #clear()}) to
      * stop rendering. Must be called on the main client thread.
      *
-     * @param route Dense list of world-space positions.
-     * @param style The visual style name (e.g., "glow", "fire").
+     * @param route      Dense list of world-space positions.
+     * @param targetName The name of the waypoint destination.
+     * @param targetPos  The final block position of the waypoint.
+     * @param isElytra   Whether this route was calculated for Elytra.
+     * @param style      The visual style name (e.g., "glow", "fire").
      */
-    public void setRoute(List<Vec3> route, String style) {
+    public void setRoute(List<Vec3> route, String targetName, Vec3 targetPos, boolean isElytra, String style) {
         // Use a defensive mutable copy so we can trim the head as the player moves.
         this.activeRoute = route.isEmpty() ? Collections.emptyList() : new java.util.ArrayList<>(route);
         this.activeStyle = style;
+        this.targetName = targetName;
+        this.targetPos = targetPos;
+        this.isElytra = isElytra;
     }
 
     /** Removes the active route, stopping all particle rendering immediately. */
     public void clear() {
         this.activeRoute = Collections.emptyList();
         this.tickCounter = 0;
+        this.targetName = null;
+        this.targetPos = null;
+        this.isElytra = false;
     }
 
     /** Returns {@code true} if a route is currently active. */
     public boolean isActive() {
         return !activeRoute.isEmpty();
+    }
+
+    public String getTargetName() {
+        return targetName;
+    }
+
+    public Vec3 getTargetPos() {
+        return targetPos;
+    }
+
+    public boolean isElytra() {
+        return isElytra;
+    }
+
+    public String getActiveStyle() {
+        return activeStyle;
     }
 
     // -----------------------------------------------------------------------
