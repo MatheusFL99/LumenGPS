@@ -81,7 +81,8 @@ public class LumenGPSClient implements ClientModInitializer {
                 float health = client.player.getHealth();
                 if (health <= 0 && lastHealth > 0) {
                     BlockPos pos = BlockPos.containing(client.player.position());
-                    WaypointManager.getInstance().add("death", pos, "soul");
+                    String dimension = client.player.level().dimension().identifier().toString();
+                    WaypointManager.getInstance().add("death", pos, dimension, "soul");
                     client.player.sendSystemMessage(Component.literal("§b[LumenGPS]§r ")
                             .append(Component.translatable("lumengps.command.death_waypoint_saved")));
                 }

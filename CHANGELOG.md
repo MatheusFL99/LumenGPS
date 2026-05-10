@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Multi-Dimension Support**: Waypoints now track whether they belong to the Overworld, Nether, or End, preventing cross-dimension navigation errors.
 - **Per-World Storage**: Waypoints are now stored separately for each Singleplayer world and Multiplayer server.
 - **Remove Confirmation**: Clicking `[✗ Remove]` in the list now shows an inline confirmation with `[✓ Yes]` and `[✗ Cancel]` buttons before deleting.
 - **Share Waypoint**: New `/gps share <name>` command (and `[📤 Share]` button in the list) sends the waypoint name and coordinates in public chat. Other players see a `[+ Add Waypoint]` button that pre-fills `/gps addpos ...` in their command bar.

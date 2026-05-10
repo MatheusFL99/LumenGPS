@@ -20,6 +20,7 @@
   "lumengps.command.help.remove": "§b/gps remove <nome>§r - Deleta um waypoint.",
   "lumengps.command.help.clear": "§b/gps clear§r - Esconde a trilha ativa.",
   "lumengps.command.destination_reached": "§aVocê chegou ao seu destino!§r",
+  "lumengps.command.dimension_mismatch": "§cNão é possível navegar até '%s'. O waypoint está no %s!§r",
   "lumengps.command.remove_confirm_prompt": "Remover o waypoint §e'%s'§r? ",
   "lumengps.command.remove_confirm_yes_hint": "Confirmar exclusão de '%s'",
   "lumengps.command.remove_confirm_cancel_hint": "Cancelar — manter o waypoint",

@@ -85,8 +85,9 @@ public final class GpsCommand {
                             String name = StringArgumentType.getString(ctx, "name");
                             FabricClientCommandSource source = ctx.getSource();
                             BlockPos pos = BlockPos.containing(source.getPlayer().position());
+                            String dimension = source.getPlayer().level().dimension().identifier().toString();
 
-                            WaypointManager.getInstance().add(name, pos, "glow");
+                            WaypointManager.getInstance().add(name, pos, dimension, "glow");
                             source.sendFeedback(Component.literal(PREFIX)
                                     .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
                             return 1;
@@ -105,13 +106,15 @@ public final class GpsCommand {
                                 FabricClientCommandSource source = ctx.getSource();
                                 BlockPos pos = BlockPos.containing(source.getPlayer().position());
 
+                                String dimension = source.getPlayer().level().dimension().identifier().toString();
+
                                 if (!List.of("glow", "fire", "soul", "end", "emerald").contains(style)) {
                                     source.sendError(Component.literal(PREFIX)
                                             .append(Component.translatable("lumengps.command.invalid_style", style)));
                                     return 0;
                                 }
 
-                                WaypointManager.getInstance().add(name, pos, style);
+                                WaypointManager.getInstance().add(name, pos, dimension, style);
                                 source.sendFeedback(Component.literal(PREFIX)
                                         .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
                                 return 1;
@@ -130,8 +133,9 @@ public final class GpsCommand {
                                         int z = IntegerArgumentType.getInteger(ctx, "z");
                                         FabricClientCommandSource source = ctx.getSource();
                                         BlockPos pos = new BlockPos(x, y, z);
+                                        String dimension = source.getPlayer().level().dimension().identifier().toString();
 
-                                        WaypointManager.getInstance().add(name, pos, "glow");
+                                        WaypointManager.getInstance().add(name, pos, dimension, "glow");
                                         source.sendFeedback(Component.literal(PREFIX)
                                                 .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
                                         return 1;
@@ -152,6 +156,7 @@ public final class GpsCommand {
                                             String style = StringArgumentType.getString(ctx, "style").toLowerCase(java.util.Locale.ROOT);
                                             FabricClientCommandSource source = ctx.getSource();
                                             BlockPos pos = new BlockPos(x, y, z);
+                                            String dimension = source.getPlayer().level().dimension().identifier().toString();
 
                                             if (!List.of("glow", "fire", "soul", "end", "emerald").contains(style)) {
                                                 source.sendError(Component.literal(PREFIX)
@@ -159,7 +164,7 @@ public final class GpsCommand {
                                                 return 0;
                                             }
 
-                                            WaypointManager.getInstance().add(name, pos, style);
+                                            WaypointManager.getInstance().add(name, pos, dimension, style);
                                             source.sendFeedback(Component.literal(PREFIX)
                                                     .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
                                             return 1;
@@ -273,9 +278,10 @@ public final class GpsCommand {
                             source.sendFeedback(Component.literal(PREFIX)
                                     .append(Component.translatable("lumengps.command.no_waypoints_saved")));
                         } else {
+                            String currentDim = source.getPlayer().level().dimension().identifier().toString();
                             source.sendFeedback(Component.literal(PREFIX)
                                     .append(Component.translatable("lumengps.command.saved_waypoints_list", String.valueOf(names.size()))));
-                            names.forEach(n -> source.sendFeedback(buildWaypointListEntry(n)));
+                            names.forEach(n -> source.sendFeedback(buildWaypointListEntry(n, currentDim)));
                         }
                         return 1;
                     }))
@@ -301,8 +307,16 @@ public final class GpsCommand {
 
         BlockPos goal  = waypointOpt.get().pos();
         String   style = waypointOpt.get().style();
+        String   targetDim = waypointOpt.get().dimension();
         BlockPos start = BlockPos.containing(source.getPlayer().position());
         Level    world = source.getPlayer().level();
+        String   currentDim = world.dimension().identifier().toString();
+
+        if (!currentDim.equals(targetDim)) {
+            source.sendError(Component.literal(PREFIX)
+                    .append(Component.translatable("lumengps.command.dimension_mismatch", name, formatDim(targetDim))));
+            return 0;
+        }
 
         source.sendFeedback(Component.literal(PREFIX)
                 .append(Component.translatable("lumengps.command.calculating_route", name)));
@@ -327,10 +341,19 @@ public final class GpsCommand {
 
     /**
      * Builds a single interactive chat line for a waypoint in /gps list.
-     * Format:  §e• name§r  [▶ Go]  [📤 Share]  [✗ Remove]
+     * Format:  §e• name§r (Dim)  [▶ Go]  [📤 Share]  [✗ Remove]
      */
-    private static MutableComponent buildWaypointListEntry(String name) {
-        MutableComponent entry = Component.literal("  §e• §f" + name + "§r  ");
+    private static MutableComponent buildWaypointListEntry(String name, String currentDim) {
+        Optional<Waypoint> waypointOpt = WaypointManager.getInstance().get(name);
+        if (waypointOpt.isEmpty()) return Component.literal("  §e• §f" + name);
+
+        Waypoint wp = waypointOpt.get();
+        MutableComponent entry = Component.literal("  §e• §f" + name + "§r ");
+
+        // Add dimension tag if different
+        if (!wp.dimension().equals(currentDim)) {
+            entry.append("§7[" + formatDim(wp.dimension()) + "]§r ");
+        }
 
         // [▶ Go] — green
         MutableComponent goBtn = Component.literal("§a[▶ Go]§r")
@@ -386,7 +409,7 @@ public final class GpsCommand {
      * Builds the private feedback message sent to the sharer after /gps share.
      * Contains a clickable [+ Add Waypoint] button that pre-fills /gps addpos in chat.
      */
-    private static MutableComponent buildShareFeedback(String name, BlockPos pos, String style) {
+    private static MutableComponent buildShareFeedback(String name, BlockPos pos, String dimension, String style) {
         String addCmd = "/gps addpos " + name + " " + pos.getX() + " " + pos.getY() + " " + pos.getZ() + " " + style;
 
         MutableComponent addBtn = Component.literal("§a[+ Add Waypoint]§r")
@@ -400,6 +423,15 @@ public final class GpsCommand {
                 .append(Component.translatable("lumengps.command.share.feedback", name))
                 .append(" ")
                 .append(addBtn);
+    }
+
+    private static String formatDim(String dimension) {
+        return switch (dimension) {
+            case "minecraft:overworld" -> "Overworld";
+            case "minecraft:the_nether" -> "Nether";
+            case "minecraft:the_end" -> "The End";
+            default -> dimension.replace("minecraft:", "");
+        };
     }
 
     private static void sendHelp(FabricClientCommandSource source) {

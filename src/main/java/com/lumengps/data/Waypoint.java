@@ -5,8 +5,9 @@ import net.minecraft.core.BlockPos;
 /**
  * Represents a saved waypoint.
  *
- * @param pos   The world position of the waypoint.
- * @param style The visual particle style (e.g., "glow", "fire", "soul", "end", "emerald").
+ * @param pos       The world position of the waypoint.
+ * @param dimension The dimension ID (e.g., "minecraft:overworld").
+ * @param style     The visual particle style.
  */
-public record Waypoint(BlockPos pos, String style) {
+public record Waypoint(BlockPos pos, String dimension, String style) {
 }

@@ -42,7 +42,7 @@ public final class WaypointManager {
     // -----------------------------------------------------------------------
 
     /** Simple serialisable DTO — BlockPos is not directly Gson-friendly. */
-    private record WaypointDto(int x, int y, int z, String style) {}
+    private record WaypointDto(int x, int y, int z, String dimension, String style) {}
 
     // -----------------------------------------------------------------------
     // State
@@ -69,12 +69,13 @@ public final class WaypointManager {
      * Saves a waypoint. Overwrites any existing entry with the same name.
      * Immediately persists the change to disk.
      *
-     * @param name  Case-insensitive waypoint name.
-     * @param pos   Block position to save.
-     * @param style The visual style to use.
+     * @param name      Case-insensitive waypoint name.
+     * @param pos       Block position to save.
+     * @param dimension The dimension ID where the player is.
+     * @param style     The visual style to use.
      */
-    public synchronized void add(String name, BlockPos pos, String style) {
-        waypoints.put(name.toLowerCase(Locale.ROOT), new Waypoint(pos, style));
+    public synchronized void add(String name, BlockPos pos, String dimension, String style) {
+        waypoints.put(name.toLowerCase(Locale.ROOT), new Waypoint(pos, dimension, style));
         save();
     }
 
@@ -135,7 +136,8 @@ public final class WaypointManager {
                 if (dtoMap != null) {
                     dtoMap.forEach((name, dto) -> {
                             String style = dto.style() != null ? dto.style() : "glow";
-                            waypoints.put(name, new Waypoint(new BlockPos(dto.x(), dto.y(), dto.z()), style));
+                            String dimension = dto.dimension() != null ? dto.dimension() : "minecraft:overworld";
+                            waypoints.put(name, new Waypoint(new BlockPos(dto.x(), dto.y(), dto.z()), dimension, style));
                     });
                     LumenGPS.LOGGER.info("[LumenGPS] Loaded {} waypoint(s) for world {}.", waypoints.size(), worldId);
                 }
@@ -166,7 +168,7 @@ public final class WaypointManager {
 
             Map<String, WaypointDto> dtoMap = new LinkedHashMap<>();
             waypoints.forEach((name, wp) ->
-                    dtoMap.put(name, new WaypointDto(wp.pos().getX(), wp.pos().getY(), wp.pos().getZ(), wp.style())));
+                    dtoMap.put(name, new WaypointDto(wp.pos().getX(), wp.pos().getY(), wp.pos().getZ(), wp.dimension(), wp.style())));
 
             try (Writer writer = Files.newBufferedWriter(worldFile, StandardCharsets.UTF_8)) {
                 GSON.toJson(dtoMap, writer);
