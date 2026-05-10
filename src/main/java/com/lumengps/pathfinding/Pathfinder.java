@@ -86,12 +86,15 @@ public final class Pathfinder {
 
         int explored = 0;
 
+        PathNode closestNode = open.peek();
+        double minH = closestNode.h;
+
         while (!open.isEmpty() && explored < MAX_NODES) {
 
             // Check wall-clock limit every 256 iterations (cheap modulo-free check).
             if ((explored & 0xFF) == 0 && System.currentTimeMillis() > deadline) {
                 LumenGPS.LOGGER.warn("[LumenGPS] A* timed out after {}ms — crow-fly fallback.", MAX_TIME_MS);
-                return crowFlyFallback(start, goal);
+                break; // break instead of return, so we can use closestNode
             }
 
             PathNode current = open.poll();
@@ -99,8 +102,13 @@ public final class Pathfinder {
             closed.add(current.pos);
             explored++;
 
-            // Goal reached — reconstruct and return the real path.
-            if (current.pos.equals(goal)) {
+            if (current.h < minH) {
+                minH = current.h;
+                closestNode = current;
+            }
+
+            // Goal reached (or close enough) — reconstruct and return the real path.
+            if (current.h <= 3.0) {
                 List<Vec3> route = interpolate(reconstructPath(current));
                 LumenGPS.LOGGER.info("[LumenGPS] A* found path in {} nodes, {} points.", explored, route.size());
                 return new PathResult(route, false);
@@ -118,7 +126,15 @@ public final class Pathfinder {
             }
         }
 
-        LumenGPS.LOGGER.warn("[LumenGPS] A* exhausted {} nodes — crow-fly fallback.", explored);
+        LumenGPS.LOGGER.warn("[LumenGPS] A* exhausted/timed out {} nodes.", explored);
+
+        // If we got reasonably close or made progress, return the partial path so the user isn't totally lost.
+        // If the closest node is just the start, fallback to crow-fly.
+        if (closestNode != null && minH < heuristic(start, goal) - 5.0) {
+            List<Vec3> partialPath = interpolate(reconstructPath(closestNode));
+            return new PathResult(partialPath, true); // true = fallback message will be shown
+        }
+
         return crowFlyFallback(start, goal);
     }
 

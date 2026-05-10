@@ -25,10 +25,13 @@ All commands are under the `/gps` root. The mod uses the Fabric command API, off
 
 | Command | Description |
 |---------|-------------|
-| `/gps add <name>` | Saves your current position as a waypoint with the given name. |
-| `/gps list` | Lists all your saved waypoints in the chat. |
-| `/gps go <name>` | Calculates and displays the particle trail guiding you from your current position to the waypoint. |
-| `/gps clear` | Clears the current visual trail from the screen. |
+| `/gps add <name> [style]` | Saves your current position. Optional style: `glow`, `fire`, `soul`, `end`, `emerald`. |
+| `/gps addpos <name> <x> <y> <z> [style]` | Saves specific coordinates as a waypoint. |
+| `/gps list` | Lists all your saved waypoints. |
+| `/gps go <name>` | Calculates and displays the particle trail to the waypoint. |
+| `/gps remove <name>` | Deletes a saved waypoint. |
+| `/gps clear` | Clears the active visual trail from the screen. |
+| `/gps` or `/gps help` | Shows the in-game command help menu. |
 
 ### 🛠️ How to Install (Players)
 
@@ -48,7 +51,7 @@ LumenGPS is built using modern modding tools from the Fabric ecosystem for Minec
 #### Setup
 1. Clone the repository:
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/MatheusFL99/LumenGPS.git
    cd MinecraftWaypointMod
    ```
 2. Rebuild and generate VS Code / IntelliJ files:
@@ -86,10 +89,13 @@ Todos os comandos ficam sob a raiz `/gps`. O mod utiliza a API de comandos do Fa
 
 | Comando | Descrição |
 |---------|-----------|
-| `/gps add <nome>` | Salva a sua posição atual como um waypoint com o nome fornecido. |
-| `/gps list` | Lista no chat todos os waypoints que você salvou. |
-| `/gps go <nome>` | Calcula e exibe a trilha de partículas guiando você da sua posição atual até o waypoint. |
+| `/gps add <nome> [estilo]` | Salva a sua posição atual. Estilos opcionais: `glow`, `fire`, `soul`, `end`, `emerald`. |
+| `/gps addpos <nome> <x> <y> <z> [estilo]` | Salva coordenadas específicas como um waypoint. |
+| `/gps list` | Lista todos os seus waypoints salvos. |
+| `/gps go <nome>` | Mostra a trilha de partículas até o waypoint. |
+| `/gps remove <nome>` | Deleta um waypoint salvo. |
 | `/gps clear` | Limpa a trilha visual atual da tela. |
+| `/gps` ou `/gps help` | Exibe o menu de ajuda de comandos dentro do jogo. |
 
 ### 🛠️ Como Instalar (Jogadores)
 
@@ -109,7 +115,7 @@ LumenGPS é construído utilizando as ferramentas modernas de modding do ecossis
 #### Setup
 1. Clone o repositório:
    ```bash
-   git clone <url-do-repo>
+   git clone https://github.com/MatheusFL99/LumenGPS.git
    cd MinecraftWaypointMod
    ```
 2. Reconstrua e gere os arquivos do VS Code / IntelliJ:

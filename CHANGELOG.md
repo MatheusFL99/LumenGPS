@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Coordinate Waypoints**: Added `/gps addpos <name> <x> <y> <z> [style]` to manually save waypoints using specific coordinates instead of the player's current location.
 - **Auto-completion**: Fast complete support added! Pressing `TAB` will now auto-suggest your saved waypoint names for `/gps go` and `/gps remove`, and visual styles for `/gps add`.
 - **Destination Reached**: The particle trail now completely disappears and sends a confirmation message in the chat when the player comes within a 5-block radius of the target waypoint.
 - **Help Menu**: Typing `/gps` or `/gps help` now displays a quick reference guide in chat for all available commands.

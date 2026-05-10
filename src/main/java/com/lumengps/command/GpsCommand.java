@@ -6,6 +6,7 @@ import com.lumengps.pathfinding.PathResult;
 import com.lumengps.pathfinding.Pathfinder;
 import com.lumengps.renderer.GpsRenderer;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -99,6 +100,54 @@ public final class GpsCommand {
                                         .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
                                 return 1;
                             }))))
+
+                // /gps addpos <name> <x> <y> <z> [style]
+                .then(ClientCommands.literal("addpos")
+                    .then(ClientCommands.argument("name", StringArgumentType.word())
+                        .then(ClientCommands.argument("x", IntegerArgumentType.integer())
+                            .then(ClientCommands.argument("y", IntegerArgumentType.integer())
+                                .then(ClientCommands.argument("z", IntegerArgumentType.integer())
+                                    .executes(ctx -> {
+                                        String name = StringArgumentType.getString(ctx, "name");
+                                        int x = IntegerArgumentType.getInteger(ctx, "x");
+                                        int y = IntegerArgumentType.getInteger(ctx, "y");
+                                        int z = IntegerArgumentType.getInteger(ctx, "z");
+                                        FabricClientCommandSource source = ctx.getSource();
+                                        BlockPos pos = new BlockPos(x, y, z);
+
+                                        WaypointManager.getInstance().add(name, pos, "glow");
+                                        source.sendFeedback(Component.literal(PREFIX)
+                                                .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
+                                        return 1;
+                                    })
+                                    .then(ClientCommands.argument("style", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> {
+                                            String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                                            List.of("glow", "fire", "soul", "end", "emerald").stream()
+                                                .filter(s -> s.startsWith(prefix))
+                                                .forEach(builder::suggest);
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(ctx -> {
+                                            String name = StringArgumentType.getString(ctx, "name");
+                                            int x = IntegerArgumentType.getInteger(ctx, "x");
+                                            int y = IntegerArgumentType.getInteger(ctx, "y");
+                                            int z = IntegerArgumentType.getInteger(ctx, "z");
+                                            String style = StringArgumentType.getString(ctx, "style").toLowerCase(java.util.Locale.ROOT);
+                                            FabricClientCommandSource source = ctx.getSource();
+                                            BlockPos pos = new BlockPos(x, y, z);
+
+                                            if (!List.of("glow", "fire", "soul", "end", "emerald").contains(style)) {
+                                                source.sendError(Component.literal(PREFIX)
+                                                        .append(Component.translatable("lumengps.command.invalid_style", style)));
+                                                return 0;
+                                            }
+
+                                            WaypointManager.getInstance().add(name, pos, style);
+                                            source.sendFeedback(Component.literal(PREFIX)
+                                                    .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
+                                            return 1;
+                                        })))))))
 
                 // /gps go <name>
                 .then(ClientCommands.literal("go")
@@ -211,6 +260,7 @@ public final class GpsCommand {
     private static void sendHelp(FabricClientCommandSource source) {
         source.sendFeedback(Component.translatable("lumengps.command.help.header"));
         source.sendFeedback(Component.translatable("lumengps.command.help.add"));
+        source.sendFeedback(Component.translatable("lumengps.command.help.addpos"));
         source.sendFeedback(Component.translatable("lumengps.command.help.go"));
         source.sendFeedback(Component.translatable("lumengps.command.help.list"));
         source.sendFeedback(Component.translatable("lumengps.command.help.remove"));
