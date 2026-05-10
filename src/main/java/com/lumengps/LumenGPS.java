@@ -18,7 +18,5 @@ public class LumenGPS implements ModInitializer {
     @Override
     public void onInitialize() {
         LOGGER.info("[LumenGPS] Initializing…");
-        // Load waypoints from config/lumengps/waypoints.json on startup.
-        WaypointManager.getInstance().load();
     }
 }

@@ -15,6 +15,8 @@ import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.client.Minecraft;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.minecraft.client.multiplayer.ServerData;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -62,6 +64,17 @@ public class LumenGPSClient implements ClientModInitializer {
             }
         });
 
+        // Handle world join/leave to switch waypoint storage
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            String worldId = getWorldId(client);
+            WaypointManager.getInstance().load(worldId);
+        });
+
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            WaypointManager.getInstance().clear();
+            GpsRenderer.getInstance().clear();
+        });
+
         // Auto-Death Waypoint Tracker
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null) {
@@ -77,5 +90,15 @@ public class LumenGPSClient implements ClientModInitializer {
                 lastHealth = -1;
             }
         });
+    }
+
+    private String getWorldId(Minecraft client) {
+        ServerData serverData = client.getCurrentServer();
+        if (serverData != null) {
+            return "multiplayer_" + serverData.ip.replace(":", "_").replaceAll("[^a-zA-Z0-9_\\-]", "");
+        } else if (client.getSingleplayerServer() != null) {
+            return "singleplayer_" + client.getSingleplayerServer().getWorldData().getLevelName().replaceAll("[^a-zA-Z0-9_\\-]", "");
+        }
+        return "unknown";
     }
 }
