@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Help Menu**: Typing `/gps` or `/gps help` now displays a quick reference guide in chat for all available commands.
 - **Visual Styles**: Added optional `[style]` parameter to `/gps add`. Supported styles are `glow`, `fire`, `soul`, `end`, and `emerald`.
 - **Auto-Death Waypoint**: The mod automatically saves a waypoint named `death` (with the `soul` fire style) when the player dies.
 - **Remove Command**: Added `/gps remove <name>` to delete saved waypoints via chat.

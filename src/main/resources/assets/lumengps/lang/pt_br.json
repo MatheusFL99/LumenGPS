@@ -11,5 +11,11 @@
   "lumengps.command.waypoint_list_item": "  §e• %s§r",
   "lumengps.command.waypoint_removed": "Waypoint §e%s§r removido.",
   "lumengps.command.invalid_style": "Estilo inválido §c%s§r. Estilos disponíveis: glow, fire, soul, end, emerald.",
-  "lumengps.command.death_waypoint_saved": "Local da morte salvo como waypoint §e'death'§r."
+  "lumengps.command.death_waypoint_saved": "Local da morte salvo como waypoint §e'death'§r.",
+  "lumengps.command.help.header": "§e=== Comandos LumenGPS ===§r",
+  "lumengps.command.help.add": "§b/gps add <nome> [estilo]§r - Salva a sua posição atual.",
+  "lumengps.command.help.go": "§b/gps go <nome>§r - Mostra a trilha até o waypoint.",
+  "lumengps.command.help.list": "§b/gps list§r - Lista seus waypoints salvos.",
+  "lumengps.command.help.remove": "§b/gps remove <nome>§r - Deleta um waypoint.",
+  "lumengps.command.help.clear": "§b/gps clear§r - Esconde a trilha ativa."
 }

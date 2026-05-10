@@ -51,6 +51,16 @@ public final class GpsCommand {
 
         dispatcher.register(
             ClientCommands.literal("gps")
+                .executes(ctx -> {
+                    sendHelp(ctx.getSource());
+                    return 1;
+                })
+                // /gps help
+                .then(ClientCommands.literal("help")
+                    .executes(ctx -> {
+                        sendHelp(ctx.getSource());
+                        return 1;
+                    }))
                 // /gps add <name>
                 .then(ClientCommands.literal("add")
                     .then(ClientCommands.argument("name", StringArgumentType.word())
@@ -176,6 +186,15 @@ public final class GpsCommand {
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
+
+    private static void sendHelp(FabricClientCommandSource source) {
+        source.sendFeedback(Component.translatable("lumengps.command.help.header"));
+        source.sendFeedback(Component.translatable("lumengps.command.help.add"));
+        source.sendFeedback(Component.translatable("lumengps.command.help.go"));
+        source.sendFeedback(Component.translatable("lumengps.command.help.list"));
+        source.sendFeedback(Component.translatable("lumengps.command.help.remove"));
+        source.sendFeedback(Component.translatable("lumengps.command.help.clear"));
+    }
 
     private static String formatPos(BlockPos pos) {
         return "§7(" + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + ")§r";
