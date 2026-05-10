@@ -31,6 +31,8 @@ public class LumenGPSClient implements ClientModInitializer {
 
     private static float lastHealth = -1;
     private static boolean lastWasElytra = false;
+    private static net.minecraft.world.phys.Vec3 lastCalcPos = null;
+    private static int calcCooldown = 0;
 
     @Override
     public void onInitializeClient() {
@@ -80,9 +82,12 @@ public class LumenGPSClient implements ClientModInitializer {
             GpsRenderer.getInstance().clear();
         });
 
-        // Auto-Death Waypoint Tracker & Armor Change Detection
+        // Auto-Death Waypoint Tracker, Armor Detection & Auto-Recalculation
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null) {
+                // Cooldown logic
+                if (calcCooldown > 0) calcCooldown--;
+
                 // 1. Health check for death waypoint
                 float health = client.player.getHealth();
                 if (health <= 0 && lastHealth > 0) {
@@ -99,18 +104,34 @@ public class LumenGPSClient implements ClientModInitializer {
                 if (isCurrentlyElytra != lastWasElytra) {
                     lastWasElytra = isCurrentlyElytra;
                     if (GpsRenderer.getInstance().isActive()) {
+                        client.player.sendSystemMessage(Component.literal("§b[LumenGPS]§r ")
+                                .append(Component.translatable(isCurrentlyElytra ? "lumengps.command.flight_mode_active" : "lumengps.command.walk_mode_active")));
                         recalculateRoute(client, isCurrentlyElytra);
+                    }
+                }
+
+                // 3. Distance-based auto-recalculation (every 15 blocks)
+                if (GpsRenderer.getInstance().isActive() && calcCooldown <= 0) {
+                    if (lastCalcPos == null) {
+                        lastCalcPos = client.player.position();
+                    } else {
+                        double dist = client.player.position().distanceTo(lastCalcPos);
+                        if (dist > 15.0) {
+                            recalculateRoute(client, isCurrentlyElytra);
+                        }
                     }
                 }
             } else {
                 lastHealth = -1;
                 lastWasElytra = false;
+                lastCalcPos = null;
             }
         });
     }
 
     /**
-     * Recalculates the active route to account for change in movement mode (walking vs flight).
+     * Recalculates the active route to account for change in movement mode (walking vs flight)
+     * or to update the trail as the player moves.
      */
     private void recalculateRoute(Minecraft client, boolean isElytraMode) {
         GpsRenderer renderer = GpsRenderer.getInstance();
@@ -129,11 +150,13 @@ public class LumenGPSClient implements ClientModInitializer {
         if (!isElytraMode && style.equals("end")) styleToUse = "glow";
         final String finalStyle = styleToUse;
 
+        // Reset tracking state
+        lastCalcPos = client.player.position();
+        calcCooldown = 40; // 2 second cooldown to prevent thread spam
+
         com.lumengps.pathfinding.Pathfinder.computeAsync(client.level, start, goal, isElytraMode, result -> {
             if (!result.isEmpty()) {
                 GpsRenderer.getInstance().setRoute(result.points(), name, target, isElytraMode, finalStyle);
-                client.player.sendSystemMessage(Component.literal("§b[LumenGPS]§r ")
-                        .append(Component.translatable(isElytraMode ? "lumengps.command.flight_mode_active" : "lumengps.command.walk_mode_active")));
             }
         });
     }
