@@ -59,9 +59,8 @@ public final class GpsCommand {
                             BlockPos pos = BlockPos.containing(source.getPlayer().position());
 
                             WaypointManager.getInstance().add(name, pos);
-                            source.sendFeedback(Component.literal(
-                                    PREFIX + "Waypoint §e" + name + "§r saved at "
-                                    + formatPos(pos) + "."));
+                            source.sendFeedback(Component.literal(PREFIX)
+                                    .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
                             return 1;
                         })))
 
@@ -76,8 +75,8 @@ public final class GpsCommand {
                                     WaypointManager.getInstance().get(name);
 
                             if (waypointOpt.isEmpty()) {
-                                source.sendError(Component.literal(
-                                        PREFIX + "No waypoint named §e" + name + "§r found."));
+                                source.sendError(Component.literal(PREFIX)
+                                        .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
                                 return 0;
                             }
 
@@ -85,27 +84,24 @@ public final class GpsCommand {
                             BlockPos start = BlockPos.containing(source.getPlayer().position());
                             Level world = source.getPlayer().level();
 
-                            source.sendFeedback(Component.literal(
-                                    PREFIX + "Calculating route to §e" + name + "§r…"));
+                            source.sendFeedback(Component.literal(PREFIX)
+                                    .append(Component.translatable("lumengps.command.calculating_route", name)));
 
                             // Run A* asynchronously; callback runs on the main thread.
                             Pathfinder.computeAsync(world, start, goal, (PathResult result) -> {
                                 if (result.isEmpty()) {
-                                    source.sendError(Component.literal(
-                                            PREFIX + "Could not find a path to §e" + name
-                                            + "§r. Is the destination reachable?"));
+                                    source.sendError(Component.literal(PREFIX)
+                                            .append(Component.translatable("lumengps.command.route_not_found", name)));
                                     return;
                                 }
                                 GpsRenderer.getInstance().setRoute(result.points());
                                 if (result.isFallback()) {
                                     // A* failed — crow-fly trail floating above terrain.
-                                    source.sendFeedback(Component.literal(
-                                            PREFIX + "§eCaminho bloqueado! §rMostrando §6rota aérea§r até §e"
-                                            + name + "§r. (§7" + result.points().size() + " pontos§r)"));
+                                    source.sendFeedback(Component.literal(PREFIX)
+                                            .append(Component.translatable("lumengps.command.route_blocked_fallback", name, String.valueOf(result.points().size()))));
                                 } else {
-                                    source.sendFeedback(Component.literal(
-                                            PREFIX + "Rota encontrada! §7(" + result.points().size()
-                                            + " pontos)§r Siga a §btrilha brilhante§r."));
+                                    source.sendFeedback(Component.literal(PREFIX)
+                                            .append(Component.translatable("lumengps.command.route_found", String.valueOf(result.points().size()))));
                                 }
                             });
 
@@ -116,8 +112,8 @@ public final class GpsCommand {
                 .then(ClientCommands.literal("clear")
                     .executes(ctx -> {
                         GpsRenderer.getInstance().clear();
-                        ctx.getSource().sendFeedback(Component.literal(
-                                PREFIX + "Route cleared."));
+                        ctx.getSource().sendFeedback(Component.literal(PREFIX)
+                                .append(Component.translatable("lumengps.command.route_cleared")));
                         return 1;
                     }))
 
@@ -128,13 +124,12 @@ public final class GpsCommand {
                         FabricClientCommandSource source = ctx.getSource();
 
                         if (names.isEmpty()) {
-                            source.sendFeedback(Component.literal(
-                                    PREFIX + "No waypoints saved yet. Use §e/gps add <name>§r."));
+                            source.sendFeedback(Component.literal(PREFIX)
+                                    .append(Component.translatable("lumengps.command.no_waypoints_saved")));
                         } else {
-                            source.sendFeedback(Component.literal(
-                                    PREFIX + "Saved waypoints §7(" + names.size() + ")§r:"));
-                            names.forEach(n -> source.sendFeedback(
-                                    Component.literal("  §e• " + n + "§r")));
+                            source.sendFeedback(Component.literal(PREFIX)
+                                    .append(Component.translatable("lumengps.command.saved_waypoints_list", String.valueOf(names.size()))));
+                            names.forEach(n -> source.sendFeedback(Component.translatable("lumengps.command.waypoint_list_item", n)));
                         }
                         return 1;
                     }))
