@@ -42,7 +42,7 @@ public final class WaypointManager {
     // -----------------------------------------------------------------------
 
     /** Simple serialisable DTO — BlockPos is not directly Gson-friendly. */
-    private record WaypointDto(int x, int y, int z) {}
+    private record WaypointDto(int x, int y, int z, String style) {}
 
     // -----------------------------------------------------------------------
     // State
@@ -57,8 +57,8 @@ public final class WaypointManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Type DTO_MAP_TYPE = new TypeToken<Map<String, WaypointDto>>() {}.getType();
 
-    /** In-memory store: name → BlockPos. */
-    private final Map<String, BlockPos> waypoints = new LinkedHashMap<>();
+    /** In-memory store: name → Waypoint. */
+    private final Map<String, Waypoint> waypoints = new LinkedHashMap<>();
 
     private WaypointManager() {}
 
@@ -70,21 +70,34 @@ public final class WaypointManager {
      * Saves a waypoint. Overwrites any existing entry with the same name.
      * Immediately persists the change to disk.
      *
-     * @param name Case-insensitive waypoint name.
-     * @param pos  Block position to save.
+     * @param name  Case-insensitive waypoint name.
+     * @param pos   Block position to save.
+     * @param style The visual style to use.
      */
-    public synchronized void add(String name, BlockPos pos) {
-        waypoints.put(name.toLowerCase(Locale.ROOT), pos);
+    public synchronized void add(String name, BlockPos pos, String style) {
+        waypoints.put(name.toLowerCase(Locale.ROOT), new Waypoint(pos, style));
         save();
     }
 
     /**
-     * Returns the {@link BlockPos} for the named waypoint, or {@link Optional#empty()}
+     * Removes a waypoint by name.
+     *
+     * @param name Case-insensitive waypoint name.
+     * @return true if the waypoint existed and was removed, false otherwise.
+     */
+    public synchronized boolean remove(String name) {
+        boolean removed = waypoints.remove(name.toLowerCase(Locale.ROOT)) != null;
+        if (removed) save();
+        return removed;
+    }
+
+    /**
+     * Returns the {@link Waypoint} for the named waypoint, or {@link Optional#empty()}
      * if no waypoint with that name exists.
      *
      * @param name Case-insensitive waypoint name.
      */
-    public synchronized Optional<BlockPos> get(String name) {
+    public synchronized Optional<Waypoint> get(String name) {
         return Optional.ofNullable(waypoints.get(name.toLowerCase(Locale.ROOT)));
     }
 
@@ -117,8 +130,10 @@ public final class WaypointManager {
                 Map<String, WaypointDto> dtoMap = GSON.fromJson(reader, DTO_MAP_TYPE);
                 if (dtoMap != null) {
                     waypoints.clear();
-                    dtoMap.forEach((name, dto) ->
-                            waypoints.put(name, new BlockPos(dto.x(), dto.y(), dto.z())));
+                    dtoMap.forEach((name, dto) -> {
+                            String style = dto.style() != null ? dto.style() : "glow";
+                            waypoints.put(name, new Waypoint(new BlockPos(dto.x(), dto.y(), dto.z()), style));
+                    });
                     LumenGPS.LOGGER.info("[LumenGPS] Loaded {} waypoint(s).", waypoints.size());
                 }
             }
@@ -136,8 +151,8 @@ public final class WaypointManager {
             Files.createDirectories(CONFIG_DIR);
 
             Map<String, WaypointDto> dtoMap = new LinkedHashMap<>();
-            waypoints.forEach((name, pos) ->
-                    dtoMap.put(name, new WaypointDto(pos.getX(), pos.getY(), pos.getZ())));
+            waypoints.forEach((name, wp) ->
+                    dtoMap.put(name, new WaypointDto(wp.pos().getX(), wp.pos().getY(), wp.pos().getZ(), wp.style())));
 
             try (Writer writer = Files.newBufferedWriter(JSON_FILE, StandardCharsets.UTF_8)) {
                 GSON.toJson(dtoMap, writer);

@@ -1,5 +1,6 @@
 package com.lumengps.command;
 
+import com.lumengps.data.Waypoint;
 import com.lumengps.data.WaypointManager;
 import com.lumengps.pathfinding.PathResult;
 import com.lumengps.pathfinding.Pathfinder;
@@ -58,11 +59,29 @@ public final class GpsCommand {
                             FabricClientCommandSource source = ctx.getSource();
                             BlockPos pos = BlockPos.containing(source.getPlayer().position());
 
-                            WaypointManager.getInstance().add(name, pos);
+                            WaypointManager.getInstance().add(name, pos, "glow");
                             source.sendFeedback(Component.literal(PREFIX)
                                     .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
                             return 1;
-                        })))
+                        })
+                        .then(ClientCommands.argument("style", StringArgumentType.word())
+                            .executes(ctx -> {
+                                String name = StringArgumentType.getString(ctx, "name");
+                                String style = StringArgumentType.getString(ctx, "style").toLowerCase(java.util.Locale.ROOT);
+                                FabricClientCommandSource source = ctx.getSource();
+                                BlockPos pos = BlockPos.containing(source.getPlayer().position());
+
+                                if (!List.of("glow", "fire", "soul", "end", "emerald").contains(style)) {
+                                    source.sendError(Component.literal(PREFIX)
+                                            .append(Component.translatable("lumengps.command.invalid_style", style)));
+                                    return 0;
+                                }
+
+                                WaypointManager.getInstance().add(name, pos, style);
+                                source.sendFeedback(Component.literal(PREFIX)
+                                        .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
+                                return 1;
+                            }))))
 
                 // /gps go <name>
                 .then(ClientCommands.literal("go")
@@ -71,8 +90,7 @@ public final class GpsCommand {
                             String name = StringArgumentType.getString(ctx, "name");
                             FabricClientCommandSource source = ctx.getSource();
 
-                            Optional<BlockPos> waypointOpt =
-                                    WaypointManager.getInstance().get(name);
+                            Optional<Waypoint> waypointOpt = WaypointManager.getInstance().get(name);
 
                             if (waypointOpt.isEmpty()) {
                                 source.sendError(Component.literal(PREFIX)
@@ -80,7 +98,8 @@ public final class GpsCommand {
                                 return 0;
                             }
 
-                            BlockPos goal = waypointOpt.get();
+                            BlockPos goal = waypointOpt.get().pos();
+                            String style = waypointOpt.get().style();
                             BlockPos start = BlockPos.containing(source.getPlayer().position());
                             Level world = source.getPlayer().level();
 
@@ -94,7 +113,7 @@ public final class GpsCommand {
                                             .append(Component.translatable("lumengps.command.route_not_found", name)));
                                     return;
                                 }
-                                GpsRenderer.getInstance().setRoute(result.points());
+                                GpsRenderer.getInstance().setRoute(result.points(), style);
                                 if (result.isFallback()) {
                                     // A* failed — crow-fly trail floating above terrain.
                                     source.sendFeedback(Component.literal(PREFIX)
@@ -106,6 +125,24 @@ public final class GpsCommand {
                             });
 
                             return 1;
+                        })))
+
+                // /gps remove <name>
+                .then(ClientCommands.literal("remove")
+                    .then(ClientCommands.argument("name", StringArgumentType.word())
+                        .executes(ctx -> {
+                            String name = StringArgumentType.getString(ctx, "name");
+                            FabricClientCommandSource source = ctx.getSource();
+
+                            if (WaypointManager.getInstance().remove(name)) {
+                                source.sendFeedback(Component.literal(PREFIX)
+                                        .append(Component.translatable("lumengps.command.waypoint_removed", name)));
+                                return 1;
+                            } else {
+                                source.sendError(Component.literal(PREFIX)
+                                        .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
+                                return 0;
+                            }
                         })))
 
                 // /gps clear

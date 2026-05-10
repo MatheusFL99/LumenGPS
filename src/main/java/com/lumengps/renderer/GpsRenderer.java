@@ -66,6 +66,9 @@ public final class GpsRenderer {
     /** Current route as a dense list of interpolated world-space points. */
     private volatile List<Vec3> activeRoute = Collections.emptyList();
 
+    /** Active particle style (glow, fire, soul, end, emerald). */
+    private volatile String activeStyle = "glow";
+
     /** Tick counter used to throttle particle spawning. */
     private int tickCounter = 0;
 
@@ -79,12 +82,13 @@ public final class GpsRenderer {
      * Sets the active route. Pass an empty list (or call {@link #clear()}) to
      * stop rendering. Must be called on the main client thread.
      *
-     * @param route Dense list of world-space positions produced by
-     *              {@link com.lumengps.pathfinding.Pathfinder}.
+     * @param route Dense list of world-space positions.
+     * @param style The visual style name (e.g., "glow", "fire").
      */
-    public void setRoute(List<Vec3> route) {
+    public void setRoute(List<Vec3> route, String style) {
         // Use a defensive mutable copy so we can trim the head as the player moves.
         this.activeRoute = route.isEmpty() ? Collections.emptyList() : new java.util.ArrayList<>(route);
+        this.activeStyle = style;
     }
 
     /** Removes the active route, stopping all particle rendering immediately. */
@@ -125,14 +129,22 @@ public final class GpsRenderer {
         Vec3 playerPos = player.position();
         double radiusSq = RENDER_RADIUS * RENDER_RADIUS;
 
-        // Spawn a GLOW particle at each route point within render radius.
+        net.minecraft.core.particles.SimpleParticleType pt = switch (activeStyle) {
+            case "fire" -> ParticleTypes.FLAME;
+            case "soul" -> ParticleTypes.SOUL_FIRE_FLAME;
+            case "end" -> ParticleTypes.END_ROD;
+            case "emerald" -> ParticleTypes.HAPPY_VILLAGER;
+            default -> ParticleTypes.GLOW;
+        };
+
+        // Spawn particle at each route point within render radius.
         for (Vec3 point : activeRoute) {
             if (playerPos.distanceToSqr(point) > radiusSq) continue;
 
             world.addParticle(
-                    ParticleTypes.GLOW,
+                    pt,
                     point.x, point.y, point.z,
-                    0.0, 0.02, 0.0   // slight upward velocity for "floating" effect
+                    0.0, pt == ParticleTypes.GLOW ? 0.02 : 0.0, 0.0
             );
         }
     }

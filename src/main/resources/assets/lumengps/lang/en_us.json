@@ -8,5 +8,8 @@
   "lumengps.command.route_cleared": "Route cleared.",
   "lumengps.command.no_waypoints_saved": "No waypoints saved yet. Use §e/gps add <name>§r.",
   "lumengps.command.saved_waypoints_list": "Saved waypoints §7(%s)§r:",
-  "lumengps.command.waypoint_list_item": "  §e• %s§r"
+  "lumengps.command.waypoint_list_item": "  §e• %s§r",
+  "lumengps.command.waypoint_removed": "Waypoint §e%s§r removed.",
+  "lumengps.command.invalid_style": "Invalid style §c%s§r. Available styles: glow, fire, soul, end, emerald.",
+  "lumengps.command.death_waypoint_saved": "Death location saved as waypoint §e'death'§r."
 }

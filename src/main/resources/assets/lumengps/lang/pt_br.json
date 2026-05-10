@@ -8,5 +8,8 @@
   "lumengps.command.route_cleared": "Rota limpa.",
   "lumengps.command.no_waypoints_saved": "Nenhum waypoint salvo ainda. Use §e/gps add <nome>§r.",
   "lumengps.command.saved_waypoints_list": "Waypoints salvos §7(%s)§r:",
-  "lumengps.command.waypoint_list_item": "  §e• %s§r"
+  "lumengps.command.waypoint_list_item": "  §e• %s§r",
+  "lumengps.command.waypoint_removed": "Waypoint §e%s§r removido.",
+  "lumengps.command.invalid_style": "Estilo inválido §c%s§r. Estilos disponíveis: glow, fire, soul, end, emerald.",
+  "lumengps.command.death_waypoint_saved": "Local da morte salvo como waypoint §e'death'§r."
 }
