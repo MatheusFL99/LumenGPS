@@ -5,6 +5,7 @@ import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -117,6 +118,14 @@ public final class GpsRenderer {
         LocalPlayer player = client.player;
         Level world = client.level;
         if (player == null || world == null) return;
+
+        Vec3 destination = activeRoute.get(activeRoute.size() - 1);
+        if (player.position().distanceToSqr(destination) <= 25.0) { // 5 blocks radius
+            player.sendSystemMessage(Component.literal("§b[LumenGPS]§r ")
+                    .append(Component.translatable("lumengps.command.destination_reached")));
+            clear();
+            return;
+        }
 
         // Advance snap: remove leading points the player has already passed.
         advanceRoute(player);

@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Auto-completion**: Fast complete support added! Pressing `TAB` will now auto-suggest your saved waypoint names for `/gps go` and `/gps remove`, and visual styles for `/gps add`.
+- **Destination Reached**: The particle trail now completely disappears and sends a confirmation message in the chat when the player comes within a 5-block radius of the target waypoint.
 - **Help Menu**: Typing `/gps` or `/gps help` now displays a quick reference guide in chat for all available commands.
 - **Visual Styles**: Added optional `[style]` parameter to `/gps add`. Supported styles are `glow`, `fire`, `soul`, `end`, and `emerald`.
 - **Auto-Death Waypoint**: The mod automatically saves a waypoint named `death` (with the `soul` fire style) when the player dies.

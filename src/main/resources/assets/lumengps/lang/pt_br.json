@@ -17,5 +17,6 @@
   "lumengps.command.help.go": "§b/gps go <nome>§r - Mostra a trilha até o waypoint.",
   "lumengps.command.help.list": "§b/gps list§r - Lista seus waypoints salvos.",
   "lumengps.command.help.remove": "§b/gps remove <nome>§r - Deleta um waypoint.",
-  "lumengps.command.help.clear": "§b/gps clear§r - Esconde a trilha ativa."
+  "lumengps.command.help.clear": "§b/gps clear§r - Esconde a trilha ativa.",
+  "lumengps.command.destination_reached": "§aVocê chegou ao seu destino!§r"
 }

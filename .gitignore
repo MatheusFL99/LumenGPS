@@ -5,6 +5,7 @@
 # ── Gradle build outputs ─────────────────────────────────────────────────────
 build/
 .gradle/
+run/
 
 # gradle/wrapper/gradle-wrapper.jar
 
@@ -18,6 +19,7 @@ out/
 # ── VS Code ───────────────────────────────────────────────────────────────────
 # Manter .vscode/tasks.json e .vscode/settings.json no versionamento.
 # Ignorar apenas configs pessoais e caches locais:
+.vscode/launch.json
 .vscode/.browse.vc.db*
 .vscode/ipch/
 .vscode/*.code-workspace

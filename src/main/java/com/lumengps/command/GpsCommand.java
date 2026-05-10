@@ -75,6 +75,13 @@ public final class GpsCommand {
                             return 1;
                         })
                         .then(ClientCommands.argument("style", StringArgumentType.word())
+                            .suggests((ctx, builder) -> {
+                                String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                                List.of("glow", "fire", "soul", "end", "emerald").stream()
+                                    .filter(s -> s.startsWith(prefix))
+                                    .forEach(builder::suggest);
+                                return builder.buildFuture();
+                            })
                             .executes(ctx -> {
                                 String name = StringArgumentType.getString(ctx, "name");
                                 String style = StringArgumentType.getString(ctx, "style").toLowerCase(java.util.Locale.ROOT);
@@ -96,6 +103,13 @@ public final class GpsCommand {
                 // /gps go <name>
                 .then(ClientCommands.literal("go")
                     .then(ClientCommands.argument("name", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                            WaypointManager.getInstance().listNames().stream()
+                                .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
+                                .forEach(builder::suggest);
+                            return builder.buildFuture();
+                        })
                         .executes(ctx -> {
                             String name = StringArgumentType.getString(ctx, "name");
                             FabricClientCommandSource source = ctx.getSource();
@@ -140,6 +154,13 @@ public final class GpsCommand {
                 // /gps remove <name>
                 .then(ClientCommands.literal("remove")
                     .then(ClientCommands.argument("name", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                            WaypointManager.getInstance().listNames().stream()
+                                .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
+                                .forEach(builder::suggest);
+                            return builder.buildFuture();
+                        })
                         .executes(ctx -> {
                             String name = StringArgumentType.getString(ctx, "name");
                             FabricClientCommandSource source = ctx.getSource();
