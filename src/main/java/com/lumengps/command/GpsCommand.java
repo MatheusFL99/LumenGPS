@@ -1,6 +1,7 @@
 package com.lumengps.command;
 
 import com.lumengps.data.WaypointManager;
+import com.lumengps.pathfinding.PathResult;
 import com.lumengps.pathfinding.Pathfinder;
 import com.lumengps.renderer.GpsRenderer;
 import com.mojang.brigadier.CommandDispatcher;
@@ -88,17 +89,24 @@ public final class GpsCommand {
                                     PREFIX + "Calculating route to §e" + name + "§r…"));
 
                             // Run A* asynchronously; callback runs on the main thread.
-                            Pathfinder.computeAsync(world, start, goal, route -> {
-                                if (route.isEmpty()) {
+                            Pathfinder.computeAsync(world, start, goal, (PathResult result) -> {
+                                if (result.isEmpty()) {
                                     source.sendError(Component.literal(
                                             PREFIX + "Could not find a path to §e" + name
                                             + "§r. Is the destination reachable?"));
                                     return;
                                 }
-                                GpsRenderer.getInstance().setRoute(route);
-                                source.sendFeedback(Component.literal(
-                                        PREFIX + "Route ready! §7(" + route.size()
-                                        + " blocks)§r Follow the §bglowing trail§r."));
+                                GpsRenderer.getInstance().setRoute(result.points());
+                                if (result.isFallback()) {
+                                    // A* failed — crow-fly trail floating above terrain.
+                                    source.sendFeedback(Component.literal(
+                                            PREFIX + "§eCaminho bloqueado! §rMostrando §6rota aérea§r até §e"
+                                            + name + "§r. (§7" + result.points().size() + " pontos§r)"));
+                                } else {
+                                    source.sendFeedback(Component.literal(
+                                            PREFIX + "Rota encontrada! §7(" + result.points().size()
+                                            + " pontos)§r Siga a §btrilha brilhante§r."));
+                                }
                             });
 
                             return 1;

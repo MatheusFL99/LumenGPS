@@ -1,0 +1,58 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "LumenGPS: Build",
+            "type": "shell",
+            "command": ".\\gradlew.bat build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "java",
+                "fileLocation": ["absolute"],
+                "pattern": {
+                    "regexp": "^(.+\\.java):(\\d+): error: (.+)$",
+                    "file": 1,
+                    "line": 2,
+                    "message": 3
+                }
+            }
+        },
+        {
+            "label": "LumenGPS: Watch (rebuild on save)",
+            "type": "shell",
+            "command": ".\\gradlew.bat build --continuous",
+            "group": "build",
+            "isBackground": true,
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": {
+                "owner": "java",
+                "fileLocation": ["absolute"],
+                "pattern": {
+                    "regexp": "^(.+\\.java):(\\d+): error: (.+)$",
+                    "file": 1,
+                    "line": 2,
+                    "message": 3
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^> Task :compileJava",
+                    "endsPattern": "^BUILD (SUCCESSFUL|FAILED)"
+                }
+            }
+        }
+    ]
+}
