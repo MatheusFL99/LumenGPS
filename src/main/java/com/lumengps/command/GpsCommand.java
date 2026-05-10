@@ -14,7 +14,10 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.level.Level;
 
 import java.util.List;
@@ -56,6 +59,19 @@ public final class GpsCommand {
                     sendHelp(ctx.getSource());
                     return 1;
                 })
+                // /gps <name> — shortcut for /gps go <name>
+                .then(ClientCommands.argument("shortcut_name", StringArgumentType.word())
+                    .suggests((ctx, builder) -> {
+                        // Only suggest waypoint names, not sub-command keywords
+                        List<String> subCmds = List.of("help", "add", "addpos", "go", "remove", "remove_confirm", "share", "clear", "list");
+                        String rem = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                        WaypointManager.getInstance().listNames().stream()
+                            .filter(n -> !subCmds.contains(n.toLowerCase(java.util.Locale.ROOT)))
+                            .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(rem))
+                            .forEach(builder::suggest);
+                        return builder.buildFuture();
+                    })
+                    .executes(ctx -> navigateTo(StringArgumentType.getString(ctx, "shortcut_name"), ctx.getSource())))
                 // /gps help
                 .then(ClientCommands.literal("help")
                     .executes(ctx -> {
@@ -159,48 +175,9 @@ public final class GpsCommand {
                                 .forEach(builder::suggest);
                             return builder.buildFuture();
                         })
-                        .executes(ctx -> {
-                            String name = StringArgumentType.getString(ctx, "name");
-                            FabricClientCommandSource source = ctx.getSource();
+                        .executes(ctx -> navigateTo(StringArgumentType.getString(ctx, "name"), ctx.getSource()))))
 
-                            Optional<Waypoint> waypointOpt = WaypointManager.getInstance().get(name);
-
-                            if (waypointOpt.isEmpty()) {
-                                source.sendError(Component.literal(PREFIX)
-                                        .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
-                                return 0;
-                            }
-
-                            BlockPos goal = waypointOpt.get().pos();
-                            String style = waypointOpt.get().style();
-                            BlockPos start = BlockPos.containing(source.getPlayer().position());
-                            Level world = source.getPlayer().level();
-
-                            source.sendFeedback(Component.literal(PREFIX)
-                                    .append(Component.translatable("lumengps.command.calculating_route", name)));
-
-                            // Run A* asynchronously; callback runs on the main thread.
-                            Pathfinder.computeAsync(world, start, goal, (PathResult result) -> {
-                                if (result.isEmpty()) {
-                                    source.sendError(Component.literal(PREFIX)
-                                            .append(Component.translatable("lumengps.command.route_not_found", name)));
-                                    return;
-                                }
-                                GpsRenderer.getInstance().setRoute(result.points(), style);
-                                if (result.isFallback()) {
-                                    // A* failed — crow-fly trail floating above terrain.
-                                    source.sendFeedback(Component.literal(PREFIX)
-                                            .append(Component.translatable("lumengps.command.route_blocked_fallback", name, String.valueOf(result.points().size()))));
-                                } else {
-                                    source.sendFeedback(Component.literal(PREFIX)
-                                            .append(Component.translatable("lumengps.command.route_found", String.valueOf(result.points().size()))));
-                                }
-                            });
-
-                            return 1;
-                        })))
-
-                // /gps remove <name>
+                // /gps remove <name> — shows a confirmation prompt
                 .then(ClientCommands.literal("remove")
                     .then(ClientCommands.argument("name", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
@@ -214,6 +191,24 @@ public final class GpsCommand {
                             String name = StringArgumentType.getString(ctx, "name");
                             FabricClientCommandSource source = ctx.getSource();
 
+                            if (WaypointManager.getInstance().get(name).isEmpty()) {
+                                source.sendError(Component.literal(PREFIX)
+                                        .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
+                                return 0;
+                            }
+
+                            // Show confirmation prompt instead of deleting immediately
+                            source.sendFeedback(buildRemoveConfirmation(name));
+                            return 1;
+                        })))
+
+                // /gps remove_confirm <name> — internal command, called by the [✓ Yes] button
+                .then(ClientCommands.literal("remove_confirm")
+                    .then(ClientCommands.argument("name", StringArgumentType.word())
+                        .executes(ctx -> {
+                            String name = StringArgumentType.getString(ctx, "name");
+                            FabricClientCommandSource source = ctx.getSource();
+
                             if (WaypointManager.getInstance().remove(name)) {
                                 source.sendFeedback(Component.literal(PREFIX)
                                         .append(Component.translatable("lumengps.command.waypoint_removed", name)));
@@ -223,6 +218,40 @@ public final class GpsCommand {
                                         .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
                                 return 0;
                             }
+                        })))
+
+                // /gps share <name> — posts waypoint info in public chat
+                .then(ClientCommands.literal("share")
+                    .then(ClientCommands.argument("name", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                            WaypointManager.getInstance().listNames().stream()
+                                .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
+                                .forEach(builder::suggest);
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String name = StringArgumentType.getString(ctx, "name");
+                            FabricClientCommandSource source = ctx.getSource();
+                            Optional<Waypoint> waypointOpt = WaypointManager.getInstance().get(name);
+
+                            if (waypointOpt.isEmpty()) {
+                                source.sendError(Component.literal(PREFIX)
+                                        .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
+                                return 0;
+                            }
+
+                            BlockPos pos = waypointOpt.get().pos();
+                            String style = waypointOpt.get().style();
+                            // Send a public chat message that ALL players see (must be plain text, no § or server kicks)
+                            String plainMsg = String.format("[LumenGPS] Shared Waypoint: '%s' at %d, %d, %d (Style: %s)",
+                                    name, pos.getX(), pos.getY(), pos.getZ(), style);
+                            source.getPlayer().connection.sendChat(plainMsg);
+                            
+                            // Send private confirmation
+                            source.sendFeedback(Component.literal(PREFIX)
+                                    .append(Component.translatable("lumengps.command.share.feedback", name)));
+                            return 1;
                         })))
 
                 // /gps clear
@@ -246,7 +275,7 @@ public final class GpsCommand {
                         } else {
                             source.sendFeedback(Component.literal(PREFIX)
                                     .append(Component.translatable("lumengps.command.saved_waypoints_list", String.valueOf(names.size()))));
-                            names.forEach(n -> source.sendFeedback(Component.translatable("lumengps.command.waypoint_list_item", n)));
+                            names.forEach(n -> source.sendFeedback(buildWaypointListEntry(n)));
                         }
                         return 1;
                     }))
@@ -257,12 +286,129 @@ public final class GpsCommand {
     // Helpers
     // -----------------------------------------------------------------------
 
+    /**
+     * Shared logic to navigate to a waypoint by name. Used by both
+     * {@code /gps go <name>} and the {@code /gps <name>} shortcut.
+     */
+    private static int navigateTo(String name, FabricClientCommandSource source) {
+        Optional<Waypoint> waypointOpt = WaypointManager.getInstance().get(name);
+
+        if (waypointOpt.isEmpty()) {
+            source.sendError(Component.literal(PREFIX)
+                    .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
+            return 0;
+        }
+
+        BlockPos goal  = waypointOpt.get().pos();
+        String   style = waypointOpt.get().style();
+        BlockPos start = BlockPos.containing(source.getPlayer().position());
+        Level    world = source.getPlayer().level();
+
+        source.sendFeedback(Component.literal(PREFIX)
+                .append(Component.translatable("lumengps.command.calculating_route", name)));
+
+        Pathfinder.computeAsync(world, start, goal, (PathResult result) -> {
+            if (result.isEmpty()) {
+                source.sendError(Component.literal(PREFIX)
+                        .append(Component.translatable("lumengps.command.route_not_found", name)));
+                return;
+            }
+            GpsRenderer.getInstance().setRoute(result.points(), style);
+            if (result.isFallback()) {
+                source.sendFeedback(Component.literal(PREFIX)
+                        .append(Component.translatable("lumengps.command.route_blocked_fallback", name, String.valueOf(result.points().size()))));
+            } else {
+                source.sendFeedback(Component.literal(PREFIX)
+                        .append(Component.translatable("lumengps.command.route_found", String.valueOf(result.points().size()))));
+            }
+        });
+        return 1;
+    }
+
+    /**
+     * Builds a single interactive chat line for a waypoint in /gps list.
+     * Format:  §e• name§r  [▶ Go]  [📤 Share]  [✗ Remove]
+     */
+    private static MutableComponent buildWaypointListEntry(String name) {
+        MutableComponent entry = Component.literal("  §e• §f" + name + "§r  ");
+
+        // [▶ Go] — green
+        MutableComponent goBtn = Component.literal("§a[▶ Go]§r")
+                .withStyle(s -> s
+                        .withClickEvent(new ClickEvent.RunCommand("/gps go " + name))
+                        .withHoverEvent(new HoverEvent.ShowText(
+                                Component.translatable("lumengps.command.list.go_hint", name))));
+
+        // [📤 Share] — aqua
+        MutableComponent shareBtn = Component.literal(" §b[📤 Share]§r")
+                .withStyle(s -> s
+                        .withClickEvent(new ClickEvent.RunCommand("/gps share " + name))
+                        .withHoverEvent(new HoverEvent.ShowText(
+                                Component.translatable("lumengps.command.list.share_hint", name))));
+
+        // [✗ Remove] — red, now triggers confirmation
+        MutableComponent removeBtn = Component.literal(" §c[✗ Remove]§r")
+                .withStyle(s -> s
+                        .withClickEvent(new ClickEvent.RunCommand("/gps remove " + name))
+                        .withHoverEvent(new HoverEvent.ShowText(
+                                Component.translatable("lumengps.command.list.remove_hint", name))));
+
+        return entry.append(goBtn).append(shareBtn).append(removeBtn);
+    }
+
+    /**
+     * Builds the inline confirmation prompt shown when clicking [✗ Remove].
+     * Format:  §b[LumenGPS]§r Remove 'name'? [✓ Yes] [✗ Cancel]
+     */
+    private static MutableComponent buildRemoveConfirmation(String name) {
+        MutableComponent msg = Component.literal(PREFIX)
+                .append(Component.translatable("lumengps.command.remove_confirm_prompt", name))
+                .append(Component.literal("  "));
+
+        // [✓ Yes] — green, actually deletes
+        MutableComponent yes = Component.literal("§a[✓ Yes]§r")
+                .withStyle(s -> s
+                        .withClickEvent(new ClickEvent.RunCommand("/gps remove_confirm " + name))
+                        .withHoverEvent(new HoverEvent.ShowText(
+                                Component.translatable("lumengps.command.remove_confirm_yes_hint", name))));
+
+        // [✗ Cancel] — grey, does nothing (suggest harmless no-op)
+        MutableComponent cancel = Component.literal(" §7[✗ Cancel]§r")
+                .withStyle(s -> s
+                        .withClickEvent(new ClickEvent.RunCommand("/gps list"))
+                        .withHoverEvent(new HoverEvent.ShowText(
+                                Component.translatable("lumengps.command.remove_confirm_cancel_hint"))));
+
+        return msg.append(yes).append(cancel);
+    }
+
+    /**
+     * Builds the private feedback message sent to the sharer after /gps share.
+     * Contains a clickable [+ Add Waypoint] button that pre-fills /gps addpos in chat.
+     */
+    private static MutableComponent buildShareFeedback(String name, BlockPos pos, String style) {
+        String addCmd = "/gps addpos " + name + " " + pos.getX() + " " + pos.getY() + " " + pos.getZ() + " " + style;
+
+        MutableComponent addBtn = Component.literal("§a[+ Add Waypoint]§r")
+                .withStyle(s -> s
+                        // SuggestCommand fills the command bar so the user can review before running
+                        .withClickEvent(new ClickEvent.SuggestCommand(addCmd))
+                        .withHoverEvent(new HoverEvent.ShowText(
+                                Component.translatable("lumengps.command.share.add_hint", name))));
+
+        return Component.literal(PREFIX)
+                .append(Component.translatable("lumengps.command.share.feedback", name))
+                .append(" ")
+                .append(addBtn);
+    }
+
     private static void sendHelp(FabricClientCommandSource source) {
         source.sendFeedback(Component.translatable("lumengps.command.help.header"));
         source.sendFeedback(Component.translatable("lumengps.command.help.add"));
         source.sendFeedback(Component.translatable("lumengps.command.help.addpos"));
         source.sendFeedback(Component.translatable("lumengps.command.help.go"));
         source.sendFeedback(Component.translatable("lumengps.command.help.list"));
+        source.sendFeedback(Component.translatable("lumengps.command.help.share"));
         source.sendFeedback(Component.translatable("lumengps.command.help.remove"));
         source.sendFeedback(Component.translatable("lumengps.command.help.clear"));
     }

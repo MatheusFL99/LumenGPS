@@ -19,5 +19,14 @@
   "lumengps.command.help.list": "§b/gps list§r - Lista seus waypoints salvos.",
   "lumengps.command.help.remove": "§b/gps remove <nome>§r - Deleta um waypoint.",
   "lumengps.command.help.clear": "§b/gps clear§r - Esconde a trilha ativa.",
-  "lumengps.command.destination_reached": "§aVocê chegou ao seu destino!§r"
+  "lumengps.command.destination_reached": "§aVocê chegou ao seu destino!§r",
+  "lumengps.command.remove_confirm_prompt": "Remover o waypoint §e'%s'§r? ",
+  "lumengps.command.remove_confirm_yes_hint": "Confirmar exclusão de '%s'",
+  "lumengps.command.remove_confirm_cancel_hint": "Cancelar — manter o waypoint",
+  "lumengps.command.share.feedback": "Waypoint §e'%s'§r compartilhado no chat!",
+  "lumengps.command.share.add_hint": "Clique para pré-preencher o comando de salvar '%s'",
+  "lumengps.command.list.go_hint": "Clique para navegar até '%s'",
+  "lumengps.command.list.share_hint": "Clique para compartilhar '%s' no chat",
+  "lumengps.command.list.remove_hint": "Clique para deletar o waypoint '%s'",
+  "lumengps.command.help.share": "§b/gps share <nome>§r - Compartilha o waypoint no chat público."
 }

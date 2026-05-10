@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Remove Confirmation**: Clicking `[✗ Remove]` in the list now shows an inline confirmation with `[✓ Yes]` and `[✗ Cancel]` buttons before deleting.
+- **Share Waypoint**: New `/gps share <name>` command (and `[📤 Share]` button in the list) sends the waypoint name and coordinates in public chat. Other players see a `[+ Add Waypoint]` button that pre-fills `/gps addpos ...` in their command bar.
+- **Interactive Waypoint List**: `/gps list` now shows clickable `[▶ Go]` and `[✗ Remove]` buttons for each waypoint in chat.
+- **Command Shortcut**: `/gps <name>` now works as a shortcut for `/gps go <name>`.
 - **Coordinate Waypoints**: Added `/gps addpos <name> <x> <y> <z> [style]` to manually save waypoints using specific coordinates instead of the player's current location.
 - **Auto-completion**: Fast complete support added! Pressing `TAB` will now auto-suggest your saved waypoint names for `/gps go` and `/gps remove`, and visual styles for `/gps add`.
 - **Destination Reached**: The particle trail now completely disappears and sends a confirmation message in the chat when the player comes within a 5-block radius of the target waypoint.

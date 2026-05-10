@@ -25,11 +25,13 @@ All commands are under the `/gps` root. The mod uses the Fabric command API, off
 
 | Command | Description |
 |---------|-------------|
+| `/gps <name>` | Shortcut for `/gps go <name>`. Navigate instantly! |
 | `/gps add <name> [style]` | Saves your current position. Optional style: `glow`, `fire`, `soul`, `end`, `emerald`. |
 | `/gps addpos <name> <x> <y> <z> [style]` | Saves specific coordinates as a waypoint. |
-| `/gps list` | Lists all your saved waypoints. |
+| `/gps list` | Lists waypoints with clickable `[▶ Go]`, `[📤 Share]`, and `[✗ Remove]` buttons. |
 | `/gps go <name>` | Calculates and displays the particle trail to the waypoint. |
-| `/gps remove <name>` | Deletes a saved waypoint. |
+| `/gps share <name>` | Shares the waypoint in public chat with a `[+ Add Waypoint]` button. |
+| `/gps remove <name>` | Deletes a saved waypoint (with confirmation prompt). |
 | `/gps clear` | Clears the active visual trail from the screen. |
 | `/gps` or `/gps help` | Shows the in-game command help menu. |
 
@@ -89,11 +91,13 @@ Todos os comandos ficam sob a raiz `/gps`. O mod utiliza a API de comandos do Fa
 
 | Comando | Descrição |
 |---------|-----------|
+| `/gps <nome>` | Atalho para `/gps go <nome>`. Navegue instantaneamente! |
 | `/gps add <nome> [estilo]` | Salva a sua posição atual. Estilos opcionais: `glow`, `fire`, `soul`, `end`, `emerald`. |
 | `/gps addpos <nome> <x> <y> <z> [estilo]` | Salva coordenadas específicas como um waypoint. |
-| `/gps list` | Lista todos os seus waypoints salvos. |
+| `/gps list` | Lista waypoints com botões clícaveis `[▶ Go]`, `[📤 Share]` e `[✗ Remove]`. |
 | `/gps go <nome>` | Mostra a trilha de partículas até o waypoint. |
-| `/gps remove <nome>` | Deleta um waypoint salvo. |
+| `/gps share <nome>` | Compartilha o waypoint no chat público com botão `[+ Add Waypoint]`. |
+| `/gps remove <nome>` | Deleta um waypoint salvo (com confirmação). |
 | `/gps clear` | Limpa a trilha visual atual da tela. |
 | `/gps` ou `/gps help` | Exibe o menu de ajuda de comandos dentro do jogo. |
 
