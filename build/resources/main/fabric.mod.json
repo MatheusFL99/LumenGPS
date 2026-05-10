@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "lumengps",
+  "version": "1.0.0",
+  "name": "LumenGPS",
+  "description": "Mark waypoints and follow a glowing A*-computed particle trail to your destination.",
+  "authors": ["Player"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/lumengps/icon.png",
+  "environment": "client",
+
+  "entrypoints": {
+    "main": ["com.lumengps.LumenGPS"],
+    "client": ["com.lumengps.LumenGPSClient"]
+  },
+
+  "mixins": ["lumengps.mixins.json"],
+
+  "depends": {
+    "fabricloader": ">=0.19.2",
+    "fabric-api": "*",
+    "minecraft": ">=26.1.2"
+  }
+}
