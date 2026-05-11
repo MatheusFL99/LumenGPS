@@ -31,5 +31,6 @@
   "lumengps.command.list.remove_hint": "Click to delete waypoint '%s'",
   "lumengps.command.help.share": "§b/gps share <name>§r - Shares the waypoint in public chat.",
   "lumengps.command.flight_mode_active": "Flight Mode activated! Recalculating aerial route...",
-  "lumengps.command.walk_mode_active": "Walk Mode activated! Recalculating ground route..."
+  "lumengps.command.walk_mode_active": "Walk Mode activated! Recalculating ground route...",
+  "lumengps.command.compass_required": "§cYou must be holding a compass to use the GPS!§r"
 }

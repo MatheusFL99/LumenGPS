@@ -13,6 +13,7 @@ import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -71,7 +72,15 @@ public final class GpsCommand {
                             .forEach(builder::suggest);
                         return builder.buildFuture();
                     })
-                    .executes(ctx -> navigateTo(StringArgumentType.getString(ctx, "shortcut_name"), ctx.getSource())))
+                    .executes(ctx -> navigateTo(ctx.getSource(), StringArgumentType.getString(ctx, "shortcut_name"), "glow")))
+                // /gps config
+                .then(ClientCommands.literal("config")
+                    .executes(ctx -> {
+                        Minecraft client = Minecraft.getInstance();
+                        client.execute(() -> client.setScreen(new com.lumengps.gui.GpsConfigScreen(null)));
+                        return 1;
+                    }))
+
                 // /gps help
                 .then(ClientCommands.literal("help")
                     .executes(ctx -> {
@@ -180,7 +189,7 @@ public final class GpsCommand {
                                 .forEach(builder::suggest);
                             return builder.buildFuture();
                         })
-                        .executes(ctx -> navigateTo(StringArgumentType.getString(ctx, "name"), ctx.getSource()))))
+                        .executes(ctx -> navigateTo(ctx.getSource(), StringArgumentType.getString(ctx, "name"), "glow"))))
 
                 // /gps remove <name> — shows a confirmation prompt
                 .then(ClientCommands.literal("remove")
@@ -292,11 +301,31 @@ public final class GpsCommand {
     // Helpers
     // -----------------------------------------------------------------------
 
+    private static int goCommand(com.mojang.brigadier.context.CommandContext<FabricClientCommandSource> context) {
+        FabricClientCommandSource source = context.getSource();
+        String name = StringArgumentType.getString(context, "name");
+        String style = GpsRenderer.getInstance().getActiveStyle();
+        if (style == null) style = "glow";
+
+        // Check Compass requirement
+        if (com.lumengps.data.GpsConfig.getInstance().requireCompass) {
+            boolean holdingCompass = source.getPlayer().getMainHandItem().is(net.minecraft.world.item.Items.COMPASS) ||
+                                     source.getPlayer().getOffhandItem().is(net.minecraft.world.item.Items.COMPASS);
+            if (!holdingCompass) {
+                source.sendError(Component.literal(PREFIX)
+                        .append(Component.translatable("lumengps.command.compass_required")));
+                return 0;
+            }
+        }
+
+        return navigateTo(source, name, style);
+    }
+
     /**
      * Shared logic to navigate to a waypoint by name. Used by both
      * {@code /gps go <name>} and the {@code /gps <name>} shortcut.
      */
-    private static int navigateTo(String name, FabricClientCommandSource source) {
+    private static int navigateTo(FabricClientCommandSource source, String name, String style) {
         Optional<Waypoint> waypointOpt = WaypointManager.getInstance().get(name);
 
         if (waypointOpt.isEmpty()) {
@@ -306,7 +335,6 @@ public final class GpsCommand {
         }
 
         BlockPos goal  = waypointOpt.get().pos();
-        String   style = waypointOpt.get().style();
         String   targetDim = waypointOpt.get().dimension();
         BlockPos start = BlockPos.containing(source.getPlayer().position());
         Level    world = source.getPlayer().level();

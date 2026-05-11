@@ -90,7 +90,7 @@ public class LumenGPSClient implements ClientModInitializer {
 
                 // 1. Health check for death waypoint
                 float health = client.player.getHealth();
-                if (health <= 0 && lastHealth > 0) {
+                if (health <= 0 && lastHealth > 0 && com.lumengps.data.GpsConfig.getInstance().enableDeathWaypoint) {
                     BlockPos pos = BlockPos.containing(client.player.position());
                     String dimension = client.player.level().dimension().identifier().toString();
                     WaypointManager.getInstance().add("death", pos, dimension, "soul");

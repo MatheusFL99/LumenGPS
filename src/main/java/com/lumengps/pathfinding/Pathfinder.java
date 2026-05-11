@@ -113,7 +113,9 @@ public final class Pathfinder {
                 if (isElytraMode) {
                     if (!BlockUtil.isFlyable(world, nb)) continue;
                 } else {
-                    if (!BlockUtil.isWalkable(world, nb)) continue;
+                    com.lumengps.data.GpsConfig config = com.lumengps.data.GpsConfig.getInstance();
+                    if (!config.intelligentMode) continue; // Skip real pathfinding if straight mode is forced
+                    if (!BlockUtil.isWalkable(world, nb, config.allowWater, config.allowLava)) continue;
                 }
 
                 double newG = current.g + distance(current.pos, nb);

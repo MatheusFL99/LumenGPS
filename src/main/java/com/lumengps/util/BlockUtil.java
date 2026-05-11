@@ -40,11 +40,13 @@ public final class BlockUtil {
      * </ol>
      */
     public static boolean isWalkable(BlockGetter world, BlockPos pos) {
+        return isWalkable(world, pos, false, false);
+    }
+
+    public static boolean isWalkable(BlockGetter world, BlockPos pos, boolean allowWater, boolean allowLava) {
         // --- Feet check ---
         VoxelShape feetShape = world.getBlockState(pos).getCollisionShape(world, pos);
         if (!feetShape.isEmpty()) {
-            // Non-passable block at feet — only allow if it's a partial/slab block
-            // so the player can stand in its upper half (maxY ≤ SLAB_MAX_Y).
             if (feetShape.max(Direction.Axis.Y) > SLAB_MAX_Y) return false;
         }
 
@@ -53,13 +55,22 @@ public final class BlockUtil {
 
         // --- Floor check ---
         BlockPos floorPos = pos.below();
-        BlockState floorState = world.getBlockState(floorPos);
+        net.minecraft.world.level.material.FluidState fluid = world.getBlockState(floorPos).getFluidState();
 
-        // Liquid source (water/lava) is a valid floor — player floats.
-        if (!floorState.getFluidState().isEmpty()) return true;
+        if (!fluid.isEmpty()) {
+            // Check specific fluids
+            boolean isWater = fluid.is(net.minecraft.tags.FluidTags.WATER);
+            boolean isLava = fluid.is(net.minecraft.tags.FluidTags.LAVA);
+            
+            if (isWater && allowWater) return true;
+            if (isLava && allowLava) return true;
+            
+            // If it's a fluid but not allowed, it's not walkable
+            return false;
+        }
 
         // Otherwise the floor must have some collision shape.
-        return !floorState.getCollisionShape(world, floorPos).isEmpty();
+        return !world.getBlockState(floorPos).getCollisionShape(world, floorPos).isEmpty();
     }
 
     /**

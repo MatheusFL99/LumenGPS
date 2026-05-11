@@ -26,7 +26,7 @@ public class GpsHud implements HudElement {
         if (client.player == null || client.options.hideGui) return;
 
         GpsRenderer renderer = GpsRenderer.getInstance();
-        if (!renderer.isActive()) return;
+        if (!renderer.isActive() || !com.lumengps.data.GpsConfig.getInstance().showHud) return;
 
         String name = renderer.getTargetName();
         Vec3 target = renderer.getTargetPos();

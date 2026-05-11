@@ -31,5 +31,6 @@
   "lumengps.command.list.remove_hint": "Clique para deletar o waypoint '%s'",
   "lumengps.command.help.share": "§b/gps share <nome>§r - Compartilha o waypoint no chat público.",
   "lumengps.command.flight_mode_active": "Modo Voo ativado! Recalculando rota aérea...",
-  "lumengps.command.walk_mode_active": "Modo Caminhada ativado! Recalculando rota terrestre..."
+  "lumengps.command.walk_mode_active": "Modo Caminhada ativado! Recalculando rota terrestre...",
+  "lumengps.command.compass_required": "§cVocê precisa segurar uma bússola para usar o GPS!§r"
 }
