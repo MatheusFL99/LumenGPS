@@ -31,7 +31,6 @@ public class LumenGPSClient implements ClientModInitializer {
 
     private static float lastHealth = -1;
     private static boolean lastWasElytra = false;
-    private static net.minecraft.world.phys.Vec3 lastCalcPos = null;
     private static int calcCooldown = 0;
 
     @Override
@@ -110,21 +109,9 @@ public class LumenGPSClient implements ClientModInitializer {
                     }
                 }
 
-                // 3. Distance-based auto-recalculation (every 15 blocks)
-                if (GpsRenderer.getInstance().isActive() && calcCooldown <= 0) {
-                    if (lastCalcPos == null) {
-                        lastCalcPos = client.player.position();
-                    } else {
-                        double dist = client.player.position().distanceTo(lastCalcPos);
-                        if (dist > 15.0) {
-                            recalculateRoute(client, isCurrentlyElytra);
-                        }
-                    }
-                }
             } else {
                 lastHealth = -1;
                 lastWasElytra = false;
-                lastCalcPos = null;
             }
         });
     }
@@ -151,7 +138,6 @@ public class LumenGPSClient implements ClientModInitializer {
         final String finalStyle = styleToUse;
 
         // Reset tracking state
-        lastCalcPos = client.player.position();
         calcCooldown = 40; // 2 second cooldown to prevent thread spam
 
         com.lumengps.pathfinding.Pathfinder.computeAsync(client.level, start, goal, isElytraMode, result -> {

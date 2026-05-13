@@ -107,18 +107,12 @@ public final class Pathfinder {
                 return new PathResult(route, false);
             }
 
-            for (BlockPos nb : getNeighbours(current.pos, isElytraMode)) {
+            for (BlockPos nb : getNeighbours(current.pos)) {
                 if (closed.contains(nb)) continue;
-                
-                if (isElytraMode) {
-                    if (!BlockUtil.isFlyable(world, nb)) continue;
-                } else {
-                    com.lumengps.data.GpsConfig config = com.lumengps.data.GpsConfig.getInstance();
-                    if (!config.intelligentMode) continue; // Skip real pathfinding if straight mode is forced
-                    if (!BlockUtil.isWalkable(world, nb, config.allowWater, config.allowLava)) continue;
-                }
 
-                double newG = current.g + distance(current.pos, nb);
+                double stepCost = calculateStepCost(world, current.pos, nb, isElytraMode);
+                double newG = current.g + stepCost;
+
                 if (newG < bestG.getOrDefault(nb, Double.MAX_VALUE)) {
                     bestG.put(nb, newG);
                     open.add(new PathNode(nb, newG, heuristic(nb, goal), current));
@@ -182,42 +176,80 @@ public final class Pathfinder {
     }
 
     /**
-     * Returns the candidate neighbour positions for {@code pos}.
+     * Returns the 26 surrounding candidate neighbour positions for {@code pos}.
      */
-    private static List<BlockPos> getNeighbours(BlockPos pos, boolean isElytraMode) {
-        if (isElytraMode) {
-            // Flight: 26 neighbours in a 3x3x3 cube around the current position.
-            // This allows diagonal and vertical movement in one step.
-            List<BlockPos> neighbours = new ArrayList<>(26);
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dy = -1; dy <= 1; dy++) {
-                    for (int dz = -1; dz <= 1; dz++) {
-                        if (dx == 0 && dy == 0 && dz == 0) continue;
-                        neighbours.add(pos.offset(dx, dy, dz));
-                    }
+    private static List<BlockPos> getNeighbours(BlockPos pos) {
+        List<BlockPos> neighbours = new ArrayList<>(26);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dy == 0 && dz == 0) continue;
+                    neighbours.add(pos.offset(dx, dy, dz));
                 }
             }
-            return neighbours;
-        } else {
-            // Walking: 4 cardinal directions with step-up/down logic.
-            List<BlockPos> neighbours = new ArrayList<>(24);
-            int[][] cardinals = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-
-            for (int[] d : cardinals) {
-                int nx = pos.getX() + d[0];
-                int nz = pos.getZ() + d[1];
-                int y  = pos.getY();
-
-                neighbours.add(new BlockPos(nx, y,     nz)); // flat
-                neighbours.add(new BlockPos(nx, y + 1, nz)); // step up 1
-                neighbours.add(new BlockPos(nx, y + 2, nz)); // step up 2
-                neighbours.add(new BlockPos(nx, y - 1, nz)); // step down 1
-                neighbours.add(new BlockPos(nx, y - 2, nz)); // step down 2
-                neighbours.add(new BlockPos(nx, y - 3, nz)); // step down 3
-            }
-            return neighbours;
         }
+        return neighbours;
     }
+
+    /**
+     * Calculates the movement cost (penalty) for moving from one block to another.
+     * Enforces the "survival mode" aggressive pathfinding logic.
+     */
+    private static double calculateStepCost(net.minecraft.world.level.BlockGetter world, BlockPos from, BlockPos to, boolean isElytraMode) {
+        double dist = distance(from, to);
+        com.lumengps.data.GpsConfig config = com.lumengps.data.GpsConfig.getInstance();
+        
+        if (isElytraMode) {
+            if (BlockUtil.isFlyable(world, to)) return dist;
+            return dist + 200.0; // Heavy penalty for mining in flight mode
+        }
+
+        if (!config.intelligentMode) {
+            // Straight mode fallback: just treat air as free, solids as obstacles
+            if (BlockUtil.isPassable(world, to) && BlockUtil.isPassable(world, to.above())) return dist;
+            return dist + 100.0;
+        }
+
+        // To stand in a block, feet must be occupyable and head must be free
+        boolean toPassable = BlockUtil.canOccupy(world, to) && BlockUtil.isPassable(world, to.above());
+        
+        boolean isWaterFloor = BlockUtil.isWater(world, to.below());
+        boolean isLavaFloor = world.getBlockState(to.below()).getFluidState().is(net.minecraft.tags.FluidTags.LAVA);
+        boolean fluidSupport = (config.allowWater && isWaterFloor) || (config.allowLava && isLavaFloor);
+        boolean toHasFloor = BlockUtil.hasSolidFloor(world, to.below()) || fluidSupport;
+
+        int dy = to.getY() - from.getY();
+        int dx = Math.abs(to.getX() - from.getX());
+        int dz = Math.abs(to.getZ() - from.getZ());
+        boolean isHorizontal = (dy == 0 && (dx > 0 || dz > 0));
+
+        if (toPassable) {
+            if (isHorizontal) {
+                if (toHasFloor) return dist; // Normal walk
+                else return dist + 2.0; // Walking off ledge into air (slight penalty to prefer solid ground)
+            } else if (dy < 0) { // Moving down
+                // Climbables (ladders, vines) or water
+                if (BlockUtil.isClimbable(world, to)) return dist;
+
+                // MLG Water handling
+                if (config.allowWater && isWaterFloor) return dist; // Landing in water
+
+                if (toHasFloor) return dist; // Stepping down safely onto a block
+                return dist + 5.0; // Falling through air (penalty accumulates per block fallen)
+            } else if (dy > 0) { // Moving up
+                if (BlockUtil.isClimbable(world, to)) return dist; // Climbing ladder/vine/water
+                return dist + 15.0; // Pillaring up / Jumping up blocks
+            }
+        } else {
+            // Mining/Breaking required
+            if (dy > 0) return dist + 100.0; // Mining upwards
+            if (dy < 0) return dist + 60.0; // Mining downwards
+            return dist + 80.0; // Mining horizontally
+        }
+        return dist;
+    }
+
+
 
     /** Walks parent pointers to build the ordered path from start → goal. */
     private static List<BlockPos> reconstructPath(PathNode node) {
