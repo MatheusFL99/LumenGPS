@@ -22,7 +22,7 @@ public class GpsConfig {
     public boolean allowWater = false;
     public boolean allowLava = false;
     public boolean enableDeathWaypoint = true;
-    public boolean enableLightPillar = true;
+    public boolean enableLightPillar = false;
     public boolean requireCompass = false;
     public boolean showHud = true;
 

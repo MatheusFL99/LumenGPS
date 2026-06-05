@@ -148,10 +148,10 @@ public final class GpsRenderer {
         Level world = client.level;
         if (player == null || world == null) return;
 
-        Vec3 destination = activeRoute.get(activeRoute.size() - 1);
-        if (player.position().distanceToSqr(destination) <= 25.0) { // 5 blocks radius
+        if (targetPos != null && player.position().distanceToSqr(targetPos) <= 6.25) { // 2.5 blocks radius
             player.sendSystemMessage(Component.literal("§b[LumenGPS]§r ")
                     .append(Component.translatable("lumengps.command.destination_reached")));
+            world.playSound(player, player.blockPosition(), net.minecraft.sounds.SoundEvents.PLAYER_LEVELUP, net.minecraft.sounds.SoundSource.PLAYERS, 0.5f, 1.0f);
             clear();
             return;
         }
@@ -184,6 +184,19 @@ public final class GpsRenderer {
                     point.x, point.y, point.z,
                     0.0, pt == ParticleTypes.GLOW ? 0.02 : 0.0, 0.0
             );
+        }
+
+        // Spawn destination light pillar if enabled
+        if (com.lumengps.data.GpsConfig.getInstance().enableLightPillar && targetPos != null) {
+            if (playerPos.distanceToSqr(targetPos) <= radiusSq * 4) { // Render pillar from up to 60 blocks away
+                for (int yOffset = 0; yOffset < 80; yOffset += 2) {
+                    world.addParticle(
+                            ParticleTypes.END_ROD,
+                            targetPos.x, targetPos.y + yOffset, targetPos.z,
+                            0.0, 0.05, 0.0
+                    );
+                }
+            }
         }
     }
 
