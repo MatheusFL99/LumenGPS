@@ -77,7 +77,7 @@ public final class Pathfinder {
         Set<BlockPos>           closed = new HashSet<>();
         Map<BlockPos, Double>   bestG  = new HashMap<>();
 
-        open.add(new PathNode(start, 0.0, heuristic(start, goal), null));
+        open.add(new PathNode(start, 0.0, heuristic(start, goal), null, 0));
         bestG.put(start, 0.0);
 
         int explored = 0;
@@ -109,12 +109,26 @@ public final class Pathfinder {
             for (BlockPos nb : getNeighbours(current.pos)) {
                 if (closed.contains(nb)) continue;
 
-                double stepCost = calculateStepCost(world, current.pos, nb, isElytraMode);
+                int newFall = 0;
+                if (!isElytraMode) {
+                    boolean nbWaterFloor = BlockUtil.isWater(world, nb.below());
+                    boolean nbLavaFloor = world.getBlockState(nb.below()).getFluidState().is(net.minecraft.tags.FluidTags.LAVA);
+                    boolean nbFluidSupport = (com.lumengps.data.GpsConfig.getInstance().allowWater && nbWaterFloor) || (com.lumengps.data.GpsConfig.getInstance().allowLava && nbLavaFloor);
+                    boolean nbHasFloor = BlockUtil.hasSolidFloor(world, nb.below()) || nbFluidSupport;
+                    
+                    if (!nbHasFloor && !BlockUtil.isClimbable(world, nb)) {
+                        if (nb.getY() <= current.pos.getY()) {
+                            newFall = current.fallDistance + 1;
+                        }
+                    }
+                }
+
+                double stepCost = calculateStepCost(world, current, nb, isElytraMode);
                 double newG = current.g + stepCost;
 
                 if (newG < bestG.getOrDefault(nb, Double.MAX_VALUE)) {
                     bestG.put(nb, newG);
-                    open.add(new PathNode(nb, newG, heuristic(nb, goal), current));
+                    open.add(new PathNode(nb, newG, heuristic(nb, goal), current, newFall));
                 }
             }
         }
@@ -194,7 +208,8 @@ public final class Pathfinder {
      * Calculates the movement cost (penalty) for moving from one block to another.
      * Enforces the "survival mode" aggressive pathfinding logic.
      */
-    private static double calculateStepCost(net.minecraft.world.level.BlockGetter world, BlockPos from, BlockPos to, boolean isElytraMode) {
+    private static double calculateStepCost(net.minecraft.world.level.BlockGetter world, PathNode current, BlockPos to, boolean isElytraMode) {
+        BlockPos from = current.pos;
         double dist = distance(from, to);
         com.lumengps.data.GpsConfig config = com.lumengps.data.GpsConfig.getInstance();
         
@@ -224,8 +239,7 @@ public final class Pathfinder {
 
         if (toPassable) {
             if (isHorizontal) {
-                if (toHasFloor) return dist; // Normal walk
-                else return dist + 2.0; // Walking off ledge into air (slight penalty to prefer solid ground)
+                return dist; // Normal walk or stepping off a ledge into the air (free distance-wise)
             } else if (dy < 0) { // Moving down
                 // Climbables (ladders, vines) or water
                 if (BlockUtil.isClimbable(world, to)) return dist;
@@ -233,8 +247,16 @@ public final class Pathfinder {
                 // MLG Water handling
                 if (config.allowWater && isWaterFloor) return dist; // Landing in water
 
-                if (toHasFloor) return dist; // Stepping down safely onto a block
-                return dist + 5.0; // Falling through air (penalty accumulates per block fallen)
+                if (toHasFloor) { // Stepping down safely onto a block
+                    if (current.fallDistance >= 3) {
+                        return dist + (current.fallDistance - 2) * 5.0; // Penalty for fall damage (accumulates after 3 blocks)
+                    }
+                    return dist;
+                }
+                
+                // Falling through air
+                if (current.fallDistance < 3) return dist; // Free fall up to 3 blocks
+                return dist + 5.0; // Penalty accumulates per block fallen beyond safe fall height
             } else if (dy > 0) { // Moving up
                 if (BlockUtil.isClimbable(world, to)) return dist; // Climbing ladder/vine/water
                 return dist + 15.0; // Pillaring up / Jumping up blocks

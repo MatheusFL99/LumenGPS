@@ -21,12 +21,14 @@ public final class PathNode implements Comparable<PathNode> {
     public final double g;
     public final double h;
     public final PathNode parent;
+    public final int fallDistance;
 
-    public PathNode(BlockPos pos, double g, double h, PathNode parent) {
+    public PathNode(BlockPos pos, double g, double h, PathNode parent, int fallDistance) {
         this.pos = pos;
         this.g = g;
         this.h = h;
         this.parent = parent;
+        this.fallDistance = fallDistance;
     }
 
     /** f-cost = g + h */
