@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages named waypoint persistence using a JSON file stored at
@@ -44,6 +45,12 @@ public final class WaypointManager {
     /** Simple serialisable DTO — BlockPos is not directly Gson-friendly. */
     private record WaypointDto(int x, int y, int z, String dimension, String style) {}
 
+    /**
+     * Holds a proposed waypoint save that is waiting for user confirmation
+     * before being committed (used by the overwrite prompt).
+     */
+    public record PendingAdd(String name, BlockPos pos, String dimension, String style) {}
+
     // -----------------------------------------------------------------------
     // State
     // -----------------------------------------------------------------------
@@ -56,6 +63,15 @@ public final class WaypointManager {
 
     /** In-memory store: name → Waypoint. */
     private final Map<String, Waypoint> waypoints = new LinkedHashMap<>();
+
+    /**
+     * Pending overwrite confirmations keyed by a short token. Populated when
+     * {@code /gps add} or {@code /gps addpos} hits an existing name and the
+     * user has {@code confirmOverwrite} enabled. Consumed (and removed) by
+     * {@code /gps add_overwrite <id>}; explicitly removed by
+     * {@code /gps add_overwrite_cancel <id>}.
+     */
+    private final Map<String, PendingAdd> pendingAdds = new ConcurrentHashMap<>();
 
     private String currentWorldId = null;
 
@@ -153,6 +169,35 @@ public final class WaypointManager {
     public synchronized void clear() {
         this.waypoints.clear();
         this.currentWorldId = null;
+        this.pendingAdds.clear();
+    }
+
+    // -----------------------------------------------------------------------
+    // Pending overwrite state
+    // -----------------------------------------------------------------------
+
+    /**
+     * Stores a pending add and returns the short id used by the confirmation
+     * click event to commit or cancel the operation.
+     */
+    public String putPending(PendingAdd pending) {
+        String id = UUID.randomUUID().toString().substring(0, 8);
+        pendingAdds.put(id, pending);
+        return id;
+    }
+
+    /**
+     * Atomically removes and returns the pending add with the given id, if any.
+     */
+    public Optional<PendingAdd> consumePending(String id) {
+        return Optional.ofNullable(pendingAdds.remove(id));
+    }
+
+    /**
+     * Discards a pending add without committing it (used by the cancel button).
+     */
+    public void removePending(String id) {
+        pendingAdds.remove(id);
     }
 
     /**

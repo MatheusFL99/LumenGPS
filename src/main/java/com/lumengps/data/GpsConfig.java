@@ -25,6 +25,7 @@ public class GpsConfig {
     public boolean enableLightPillar = false;
     public boolean requireCompass = false;
     public boolean showHud = true;
+    public boolean confirmOverwrite = true;
 
     private GpsConfig() {}
 

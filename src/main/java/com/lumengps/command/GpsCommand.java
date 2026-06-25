@@ -64,7 +64,7 @@ public final class GpsCommand {
                 .then(ClientCommands.argument("shortcut_name", StringArgumentType.word())
                     .suggests((ctx, builder) -> {
                         // Only suggest waypoint names, not sub-command keywords
-                        List<String> subCmds = List.of("help", "add", "addpos", "go", "remove", "remove_confirm", "share", "clear", "list");
+                        List<String> subCmds = List.of("help", "add", "addpos", "add_overwrite", "add_overwrite_cancel", "go", "remove", "remove_confirm", "share", "clear", "list", "config");
                         String rem = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
                         WaypointManager.getInstance().listNames().stream()
                             .filter(n -> !subCmds.contains(n.toLowerCase(java.util.Locale.ROOT)))
@@ -77,7 +77,7 @@ public final class GpsCommand {
                 .then(ClientCommands.literal("config")
                     .executes(ctx -> {
                         Minecraft client = Minecraft.getInstance();
-                        client.execute(() -> client.setScreen(new com.lumengps.gui.GpsConfigScreen(null)));
+                        client.execute(() -> client.gui.setScreen(new com.lumengps.gui.GpsConfigScreen(null)));
                         return 1;
                     }))
 
@@ -95,11 +95,7 @@ public final class GpsCommand {
                             FabricClientCommandSource source = ctx.getSource();
                             BlockPos pos = BlockPos.containing(source.getPlayer().position());
                             String dimension = source.getPlayer().level().dimension().identifier().toString();
-
-                            WaypointManager.getInstance().add(name, pos, dimension, "glow");
-                            source.sendFeedback(Component.literal(PREFIX)
-                                    .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
-                            return 1;
+                            return addWaypoint(source, name, pos, dimension, "glow");
                         })
                         .then(ClientCommands.argument("style", StringArgumentType.word())
                             .suggests((ctx, builder) -> {
@@ -113,9 +109,6 @@ public final class GpsCommand {
                                 String name = StringArgumentType.getString(ctx, "name");
                                 String style = StringArgumentType.getString(ctx, "style").toLowerCase(java.util.Locale.ROOT);
                                 FabricClientCommandSource source = ctx.getSource();
-                                BlockPos pos = BlockPos.containing(source.getPlayer().position());
-
-                                String dimension = source.getPlayer().level().dimension().identifier().toString();
 
                                 if (!List.of("glow", "fire", "soul", "end", "emerald").contains(style)) {
                                     source.sendError(Component.literal(PREFIX)
@@ -123,10 +116,9 @@ public final class GpsCommand {
                                     return 0;
                                 }
 
-                                WaypointManager.getInstance().add(name, pos, dimension, style);
-                                source.sendFeedback(Component.literal(PREFIX)
-                                        .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
-                                return 1;
+                                BlockPos pos = BlockPos.containing(source.getPlayer().position());
+                                String dimension = source.getPlayer().level().dimension().identifier().toString();
+                                return addWaypoint(source, name, pos, dimension, style);
                             }))))
 
                 // /gps addpos <name> <x> <y> <z> [style]
@@ -143,11 +135,7 @@ public final class GpsCommand {
                                         FabricClientCommandSource source = ctx.getSource();
                                         BlockPos pos = new BlockPos(x, y, z);
                                         String dimension = source.getPlayer().level().dimension().identifier().toString();
-
-                                        WaypointManager.getInstance().add(name, pos, dimension, "glow");
-                                        source.sendFeedback(Component.literal(PREFIX)
-                                                .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
-                                        return 1;
+                                        return addWaypoint(source, name, pos, dimension, "glow");
                                     })
                                     .then(ClientCommands.argument("style", StringArgumentType.word())
                                         .suggests((ctx, builder) -> {
@@ -173,10 +161,7 @@ public final class GpsCommand {
                                                 return 0;
                                             }
 
-                                            WaypointManager.getInstance().add(name, pos, dimension, style);
-                                            source.sendFeedback(Component.literal(PREFIX)
-                                                    .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
-                                            return 1;
+                                            return addWaypoint(source, name, pos, dimension, style);
                                         })))))))
 
                 // /gps go <name>
@@ -232,6 +217,35 @@ public final class GpsCommand {
                                         .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
                                 return 0;
                             }
+                        })))
+
+                // /gps add_overwrite <id> — internal command, called by the [✓ Replace] button
+                .then(ClientCommands.literal("add_overwrite")
+                    .then(ClientCommands.argument("id", StringArgumentType.word())
+                        .executes(ctx -> {
+                            String id = StringArgumentType.getString(ctx, "id");
+                            FabricClientCommandSource source = ctx.getSource();
+
+                            Optional<WaypointManager.PendingAdd> pending = WaypointManager.getInstance().consumePending(id);
+                            if (pending.isEmpty()) {
+                                source.sendError(Component.literal(PREFIX)
+                                        .append(Component.translatable("lumengps.command.add_overwrite_expired")));
+                                return 0;
+                            }
+
+                            WaypointManager.PendingAdd p = pending.get();
+                            WaypointManager.getInstance().add(p.name(), p.pos(), p.dimension(), p.style());
+                            source.sendFeedback(Component.literal(PREFIX)
+                                    .append(Component.translatable("lumengps.command.add_overwrite_done", p.name())));
+                            return 1;
+                        })))
+
+                // /gps add_overwrite_cancel <id> — internal command, called by the [✗ Cancel] button
+                .then(ClientCommands.literal("add_overwrite_cancel")
+                    .then(ClientCommands.argument("id", StringArgumentType.word())
+                        .executes(ctx -> {
+                            WaypointManager.getInstance().removePending(StringArgumentType.getString(ctx, "id"));
+                            return 1;
                         })))
 
                 // /gps share <name> — posts waypoint info in public chat
@@ -360,7 +374,7 @@ public final class GpsCommand {
                         .append(Component.translatable("lumengps.command.route_not_found", name)));
                 return;
             }
-            GpsRenderer.getInstance().setRoute(result.points(), name, goal.getCenter(), isElytraMode, finalStyle);
+            GpsRenderer.getInstance().setRoute(result.points(), name, net.minecraft.world.phys.Vec3.atCenterOf(goal), isElytraMode, finalStyle);
             if (result.isFallback()) {
                 source.sendFeedback(Component.literal(PREFIX)
                         .append(Component.translatable("lumengps.command.route_blocked_fallback", name, String.valueOf(result.points().size()))));
@@ -369,6 +383,26 @@ public final class GpsCommand {
                         .append(Component.translatable("lumengps.command.route_found", String.valueOf(result.points().size()))));
             }
         });
+        return 1;
+    }
+
+    /**
+     * Shared save logic used by both {@code /gps add} and {@code /gps addpos}.
+     * If a waypoint with the same name already exists and
+     * {@code GpsConfig.confirmOverwrite} is enabled, emits an inline
+     * confirmation prompt instead of overwriting immediately.
+     */
+    private static int addWaypoint(FabricClientCommandSource source, String name,
+                                   BlockPos pos, String dimension, String style) {
+        WaypointManager mgr = WaypointManager.getInstance();
+        if (com.lumengps.data.GpsConfig.getInstance().confirmOverwrite && mgr.get(name).isPresent()) {
+            String id = mgr.putPending(new WaypointManager.PendingAdd(name, pos, dimension, style));
+            source.sendFeedback(buildAddOverwriteConfirmation(name, id));
+            return 1;
+        }
+        mgr.add(name, pos, dimension, style);
+        source.sendFeedback(Component.literal(PREFIX)
+                .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
         return 1;
     }
 
@@ -436,6 +470,33 @@ public final class GpsCommand {
                                 Component.translatable("lumengps.command.remove_confirm_cancel_hint"))));
 
         return msg.append(yes).append(cancel);
+    }
+
+    /**
+     * Builds the inline confirmation prompt shown when /gps add or /gps addpos
+     * targets a name that already exists. Format:
+     *   §b[LumenGPS]§r Waypoint 'name' already exists. Replace it?  [✓ Replace]  [✗ Cancel]
+     */
+    private static MutableComponent buildAddOverwriteConfirmation(String name, String id) {
+        MutableComponent msg = Component.literal(PREFIX)
+                .append(Component.translatable("lumengps.command.add_overwrite_prompt", name))
+                .append(Component.literal("  "));
+
+        // [✓ Replace] — green, commits the pending save
+        MutableComponent replace = Component.literal("§a[✓ Replace]§r")
+                .withStyle(s -> s
+                        .withClickEvent(new ClickEvent.RunCommand("/gps add_overwrite " + id))
+                        .withHoverEvent(new HoverEvent.ShowText(
+                                Component.translatable("lumengps.command.add_overwrite_yes_hint", name))));
+
+        // [✗ Cancel] — grey, discards the pending save
+        MutableComponent cancel = Component.literal(" §7[✗ Cancel]§r")
+                .withStyle(s -> s
+                        .withClickEvent(new ClickEvent.RunCommand("/gps add_overwrite_cancel " + id))
+                        .withHoverEvent(new HoverEvent.ShowText(
+                                Component.translatable("lumengps.command.add_overwrite_cancel_hint"))));
+
+        return msg.append(replace).append(cancel);
     }
 
     /**

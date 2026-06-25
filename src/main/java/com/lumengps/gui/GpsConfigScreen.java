@@ -80,10 +80,18 @@ public class GpsConfigScreen extends Screen {
                     config.save();
                 }));
 
+        y += spacing;
+        // Confirm Overwrite
+        this.addRenderableWidget(CycleButton.onOffBuilder(config.confirmOverwrite)
+                .create(centerX - 100, y, 200, 20, Component.literal("Confirmar Sobrescrita"), (btn, value) -> {
+                    config.confirmOverwrite = value;
+                    config.save();
+                }));
+
         y += 30;
         // Back Button
         this.addRenderableWidget(Button.builder(Component.literal("Pronto"), (btn) -> {
-            this.minecraft.setScreen(this.parent);
+            this.minecraft.gui.setScreen(this.parent);
         }).bounds(centerX - 100, y, 200, 20).build());
     }
 

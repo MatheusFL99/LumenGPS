@@ -32,5 +32,10 @@
   "lumengps.command.help.share": "§b/gps share <name>§r - Shares the waypoint in public chat.",
   "lumengps.command.flight_mode_active": "Flight Mode activated! Recalculating aerial route...",
   "lumengps.command.walk_mode_active": "Walk Mode activated! Recalculating ground route...",
-  "lumengps.command.compass_required": "§cYou must be holding a compass to use the GPS!§r"
+  "lumengps.command.compass_required": "§cYou must be holding a compass to use the GPS!§r",
+  "lumengps.command.add_overwrite_prompt": "Waypoint §e'%s'§r already exists. Replace it? ",
+  "lumengps.command.add_overwrite_yes_hint": "Click to overwrite '%s'",
+  "lumengps.command.add_overwrite_cancel_hint": "Cancel — keep the existing waypoint",
+  "lumengps.command.add_overwrite_done": "Waypoint §e'%s'§r overwritten.",
+  "lumengps.command.add_overwrite_expired": "This confirmation has expired."
 }

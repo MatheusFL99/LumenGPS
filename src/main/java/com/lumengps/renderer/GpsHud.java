@@ -23,7 +23,7 @@ public class GpsHud implements HudElement {
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, DeltaTracker deltaTracker) {
         Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.options.hideGui) return;
+        if (client.player == null || client.gui.hud.isHidden()) return;
 
         GpsRenderer renderer = GpsRenderer.getInstance();
         if (!renderer.isActive() || !com.lumengps.data.GpsConfig.getInstance().showHud) return;

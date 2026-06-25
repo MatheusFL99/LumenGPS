@@ -1,6 +1,7 @@
 package com.lumengps;
 
 import com.lumengps.command.GpsCommand;
+import com.lumengps.gui.GpsConfigScreen;
 import com.lumengps.renderer.GpsRenderer;
 import com.lumengps.renderer.GpsHud;
 import com.lumengps.data.WaypointManager;
@@ -9,6 +10,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -18,6 +20,11 @@ import net.minecraft.client.Minecraft;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,6 +46,19 @@ public class LumenGPSClient implements ClientModInitializer {
 
         // Register HUD rendering
         GpsHud.register();
+
+        // Shift + right-click with a compass in either hand opens the config screen.
+        // Fires on both sides, so we filter by isClientSide() and only react when not already in a GUI.
+        UseItemCallback.EVENT.register((Player player, Level world, InteractionHand hand) -> {
+            if (!world.isClientSide()) return InteractionResult.PASS;
+            Minecraft client = Minecraft.getInstance();
+            if (client.player == null || !client.player.isShiftKeyDown()) return InteractionResult.PASS;
+            if (client.gui.screen() != null) return InteractionResult.PASS;
+            if (!isHoldingCompass(client.player)) return InteractionResult.PASS;
+
+            client.execute(() -> client.gui.setScreen(new GpsConfigScreen(null)));
+            return InteractionResult.FAIL;
+        });
 
         // Register /gps commands (client-side — works on any server without server-side mod).
         ClientCommandRegistrationCallback.EVENT.register(GpsCommand::register);
@@ -145,6 +165,10 @@ public class LumenGPSClient implements ClientModInitializer {
                 GpsRenderer.getInstance().setRoute(result.points(), name, target, isElytraMode, finalStyle);
             }
         });
+    }
+
+    private static boolean isHoldingCompass(Player player) {
+        return player.getMainHandItem().is(Items.COMPASS) || player.getOffhandItem().is(Items.COMPASS);
     }
 
     private String getWorldId(Minecraft client) {
