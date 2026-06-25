@@ -101,21 +101,6 @@ public final class GpsCommand {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
                             return addWaypoint(ctx.getSource(), StringArgumentType.getString(ctx, "name"), p.blockPosition(), p.level().dimension().identifier().toString(), "glow");
                         })
-                        .then(Commands.argument("style", StringArgumentType.word())
-                            .suggests((ctx, builder) -> {
-                                String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
-                                List.of("glow", "fire", "soul", "end", "emerald").stream()
-                                    .filter(s -> s.startsWith(prefix))
-                                    .forEach(builder::suggest);
-                                return builder.buildFuture();
-                            })
-                            .executes(ctx -> {
-                                ServerPlayer p = ctx.getSource().getPlayerOrException();
-                                String style = StringArgumentType.getString(ctx, "style").toLowerCase(java.util.Locale.ROOT);
-                                if (!List.of("glow", "fire", "soul", "end", "emerald").contains(style)) return 0;
-                                return addWaypoint(ctx.getSource(), StringArgumentType.getString(ctx, "name"), p.blockPosition(), p.level().dimension().identifier().toString(), style);
-                            })
-                        )
                     )
                 )
                 // /gps addpos <name> <x> <y> <z> <dim> <style>
@@ -302,7 +287,7 @@ public final class GpsCommand {
 
     private static void sendHelp(CommandSourceStack source) {
         source.sendSuccess(() -> Component.literal("§b=== LumenGPS Help ===§r\n" +
-                "/gps add <name> [style] - Save waypoint\n" +
+                "/gps add <name> - Save waypoint\n" +
                 "/gps go <name> - Navigate to waypoint\n" +
                 "/gps clear - Clear active route\n" +
                 "/gps list - List waypoints\n" +
