@@ -239,7 +239,11 @@ public final class Pathfinder {
 
         if (toPassable) {
             if (isHorizontal) {
-                return dist; // Normal walk or stepping off a ledge into the air (free distance-wise)
+                if (toHasFloor) return dist; // Normal walk
+                
+                // Jumping across a gap / walking on air
+                if (current.fallDistance > 2) return dist + 500.0; // Impossible to jump horizontally forever
+                return dist + 5.0; // Penalty for jumping a small gap
             } else if (dy < 0) { // Moving down
                 // Climbables (ladders, vines) or water
                 if (BlockUtil.isClimbable(world, to)) return dist;
