@@ -118,7 +118,30 @@ public final class GpsCommand {
                         )
                     )
                 )
-
+                // /gps addpos <name> <x> <y> <z> <dim> <style>
+                .then(Commands.literal("addpos")
+                    .then(Commands.argument("name", StringArgumentType.word())
+                        .then(Commands.argument("x", IntegerArgumentType.integer())
+                            .then(Commands.argument("y", IntegerArgumentType.integer())
+                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                    .then(Commands.argument("dim", StringArgumentType.string())
+                                        .then(Commands.argument("style", StringArgumentType.word())
+                                            .executes(ctx -> {
+                                                String n = StringArgumentType.getString(ctx, "name");
+                                                int x = IntegerArgumentType.getInteger(ctx, "x");
+                                                int y = IntegerArgumentType.getInteger(ctx, "y");
+                                                int z = IntegerArgumentType.getInteger(ctx, "z");
+                                                String dim = StringArgumentType.getString(ctx, "dim");
+                                                String style = StringArgumentType.getString(ctx, "style");
+                                                return addWaypoint(ctx.getSource(), n, new BlockPos(x, y, z), dim, style);
+                                            })
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
                 // /gps go <name>
                 .then(Commands.literal("go")
                     .then(Commands.argument("name", StringArgumentType.word())
@@ -133,6 +156,75 @@ public final class GpsCommand {
                             return builder.buildFuture();
                         })
                         .executes(ctx -> navigateTo(ctx.getSource(), StringArgumentType.getString(ctx, "name"), "glow"))))
+
+                // /gps share <name>
+                .then(Commands.literal("share")
+                    .then(Commands.argument("name", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            try {
+                                ServerPlayer player = ctx.getSource().getPlayerOrException();
+                                String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                                WaypointManager.get(player.getUUID()).listNames().stream()
+                                    .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
+                                    .forEach(builder::suggest);
+                            } catch (Exception e) {}
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> shareWaypoint(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
+
+                // /gps remove <name>
+                .then(Commands.literal("remove")
+                    .then(Commands.argument("name", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            try {
+                                ServerPlayer player = ctx.getSource().getPlayerOrException();
+                                String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                                WaypointManager.get(player.getUUID()).listNames().stream()
+                                    .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
+                                    .forEach(builder::suggest);
+                            } catch (Exception e) {}
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            try {
+                                ServerPlayer player = ctx.getSource().getPlayerOrException();
+                                String name = StringArgumentType.getString(ctx, "name");
+                                if (WaypointManager.get(player.getUUID()).getWaypoint(name).isEmpty()) {
+                                    ctx.getSource().sendFailure(Component.literal(PREFIX + "Waypoint '" + name + "' not found."));
+                                    return 0;
+                                }
+                                
+                                MutableComponent msg = Component.literal(PREFIX + "Remove '" + name + "'? ");
+                                msg.append(Component.literal("§a[✓ Yes]§r")
+                                    .withStyle(s -> s
+                                        .withClickEvent(new ClickEvent.RunCommand("/gps remove_confirm " + name))
+                                        .withHoverEvent(new HoverEvent.ShowText(Component.literal("Confirm delete")))));
+                                msg.append(Component.literal(" §7[✗ Cancel]§r")
+                                    .withStyle(s -> s
+                                        .withClickEvent(new ClickEvent.RunCommand("/gps list"))
+                                        .withHoverEvent(new HoverEvent.ShowText(Component.literal("Cancel")))));
+                                        
+                                ctx.getSource().sendSuccess(() -> msg, false);
+                            } catch (Exception e) {}
+                            return 1;
+                        })
+                    )
+                )
+
+                // /gps remove_confirm <name>
+                .then(Commands.literal("remove_confirm")
+                    .then(Commands.argument("name", StringArgumentType.word())
+                        .executes(ctx -> {
+                            try {
+                                ServerPlayer player = ctx.getSource().getPlayerOrException();
+                                String name = StringArgumentType.getString(ctx, "name");
+                                WaypointManager.get(player.getUUID()).remove(name);
+                                ctx.getSource().sendSuccess(() -> Component.literal(PREFIX + "Waypoint '" + name + "' removed."), false);
+                            } catch (Exception e) {}
+                            return 1;
+                        })
+                    )
+                )
 
                 // /gps clear
                 .then(Commands.literal("clear")
@@ -154,7 +246,28 @@ public final class GpsCommand {
                             if (names.isEmpty()) {
                                 ctx.getSource().sendSuccess(() -> Component.literal(PREFIX).append("No waypoints saved."), false);
                             } else {
-                                ctx.getSource().sendSuccess(() -> Component.literal(PREFIX + "Saved waypoints: " + String.join(", ", names)), false);
+                                ctx.getSource().sendSuccess(() -> Component.literal("§b=== LumenGPS Waypoints ===§r\n"), false);
+                                for (String name : names) {
+                                    MutableComponent line = Component.literal("§7- §e" + name + "§r ");
+                                    
+                                    MutableComponent goBtn = Component.literal("§a[▶ Go]§r")
+                                        .withStyle(s -> s
+                                            .withClickEvent(new ClickEvent.RunCommand("/gps go " + name))
+                                            .withHoverEvent(new HoverEvent.ShowText(Component.literal("Navigate to " + name))));
+                                            
+                                    MutableComponent shareBtn = Component.literal(" §b[📤 Share]§r")
+                                        .withStyle(s -> s
+                                            .withClickEvent(new ClickEvent.RunCommand("/gps share " + name))
+                                            .withHoverEvent(new HoverEvent.ShowText(Component.literal("Share " + name + " in chat"))));
+                                            
+                                    MutableComponent removeBtn = Component.literal(" §c[✗ Remove]§r")
+                                        .withStyle(s -> s
+                                            .withClickEvent(new ClickEvent.RunCommand("/gps remove " + name))
+                                            .withHoverEvent(new HoverEvent.ShowText(Component.literal("Remove " + name))));
+                                            
+                                    line.append(goBtn).append(shareBtn).append(removeBtn);
+                                    ctx.getSource().sendSuccess(() -> line, false);
+                                }
                             }
                         } catch (Exception e) {}
                         return 1;
@@ -234,6 +347,35 @@ public final class GpsCommand {
                 }
             });
 
+        } catch (Exception e) {}
+        return 1;
+    }
+    private static int shareWaypoint(CommandSourceStack source, String name) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            Optional<Waypoint> opt = WaypointManager.get(player.getUUID()).getWaypoint(name);
+
+            if (opt.isEmpty()) {
+                source.sendFailure(Component.literal(PREFIX + "Waypoint '" + name + "' not found."));
+                return 0;
+            }
+
+            Waypoint wp = opt.get();
+            String dim = wp.dimension();
+            String displayDim = dim.contains(":") ? dim.split(":")[1] : dim;
+            BlockPos pos = wp.pos();
+            
+            // Generate command to run when another player clicks it
+            String cmd = String.format("/gps addpos %s %d %d %d %s %s", name, pos.getX(), pos.getY(), pos.getZ(), wp.dimension(), wp.style());
+
+            MutableComponent shareMsg = Component.literal(PREFIX + "§e" + player.getName().getString() + "§r shared Waypoint '§a" + name + "§r' at " + pos.toShortString() + " in " + displayDim + " ");
+            shareMsg.append(Component.literal("§b[+ Add]§r")
+                .withStyle(style -> style
+                    .withClickEvent(new ClickEvent.SuggestCommand(cmd))
+                    .withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to add this waypoint")))
+                ));
+
+            source.getServer().getPlayerList().broadcastSystemMessage(shareMsg, false);
         } catch (Exception e) {}
         return 1;
     }
