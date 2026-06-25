@@ -2,7 +2,6 @@ package com.lumengps.pathfinding;
 
 import com.lumengps.LumenGPS;
 import com.lumengps.util.BlockUtil;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.phys.Vec3;
@@ -47,13 +46,13 @@ public final class Pathfinder {
     /**
      * Starts an asynchronous A* computation from {@code start} to {@code goal}.
      *
-     * @param world         Client world used for block queries (read-only).
+     * @param world         Server world used for block queries (read-only).
      * @param start         Player's current block position.
      * @param goal          Target waypoint block position.
      * @param isElytraMode  If true, the pathfinder will allow air-based movement.
-     * @param callback      Invoked on the <em>main client thread</em> with the result.
+     * @param callback      Invoked on the <em>main server thread</em> with the result.
      */
-    public static void computeAsync(BlockGetter world,
+    public static void computeAsync(net.minecraft.server.level.ServerLevel world,
                                     BlockPos start,
                                     BlockPos goal,
                                     boolean isElytraMode,
@@ -63,7 +62,7 @@ public final class Pathfinder {
                 .name("lumengps-pathfinder")
                 .start(() -> {
                     PathResult result = runAStar(world, start, goal, isElytraMode);
-                    Minecraft.getInstance().execute(() -> callback.accept(result));
+                    world.getServer().execute(() -> callback.accept(result));
                 });
     }
 

@@ -1,103 +1,107 @@
 package com.lumengps.command;
 
+import com.lumengps.data.GpsConfig;
 import com.lumengps.data.Waypoint;
 import com.lumengps.data.WaypointManager;
 import com.lumengps.pathfinding.PathResult;
 import com.lumengps.pathfinding.Pathfinder;
-import com.lumengps.renderer.GpsRenderer;
+import com.lumengps.ServerGpsManager;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
-import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.commands.CommandBuildContext;
-import net.minecraft.client.Minecraft;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.world.level.Level;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-/**
- * Registers all {@code /gps} sub-commands using the Fabric client command API.
- *
- * <p>These are <em>client-side</em> commands — they work on any server (vanilla
- * or modded) without the mod being installed server-side. All world access is
- * performed on the client world.</p>
- *
- * <h3>Commands</h3>
- * <pre>
- *   /gps add &lt;name&gt;   — Save current position as a named waypoint.
- *   /gps go  &lt;name&gt;   — Compute and display a glowing route to the waypoint.
- *   /gps clear        — Remove the active particle route.
- *   /gps list         — List all saved waypoint names.
- * </pre>
- */
-@Environment(EnvType.CLIENT)
 public final class GpsCommand {
 
-    // Chat prefix used in all feedback messages.
     private static final String PREFIX = "§b[LumenGPS]§r ";
 
     private GpsCommand() {}
 
-    /**
-     * Called by {@link com.lumengps.LumenGPSClient} during
-     * {@link net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback}.
-     */
-    public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher,
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher,
                                 CommandBuildContext registryAccess) {
 
         dispatcher.register(
-            ClientCommands.literal("gps")
+            Commands.literal("gps")
                 .executes(ctx -> {
                     sendHelp(ctx.getSource());
                     return 1;
                 })
-                // /gps <name> — shortcut for /gps go <name>
-                .then(ClientCommands.argument("shortcut_name", StringArgumentType.word())
+                .then(Commands.argument("shortcut_name", StringArgumentType.word())
                     .suggests((ctx, builder) -> {
-                        // Only suggest waypoint names, not sub-command keywords
-                        List<String> subCmds = List.of("help", "add", "addpos", "add_overwrite", "add_overwrite_cancel", "go", "remove", "remove_confirm", "share", "clear", "list", "config");
-                        String rem = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
-                        WaypointManager.getInstance().listNames().stream()
-                            .filter(n -> !subCmds.contains(n.toLowerCase(java.util.Locale.ROOT)))
-                            .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(rem))
-                            .forEach(builder::suggest);
+                        try {
+                            ServerPlayer player = ctx.getSource().getPlayerOrException();
+                            List<String> subCmds = List.of("help", "add", "addpos", "add_overwrite", "add_overwrite_cancel", "go", "remove", "remove_confirm", "share", "clear", "list", "config");
+                            String rem = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                            WaypointManager.get(player.getUUID()).listNames().stream()
+                                .filter(n -> !subCmds.contains(n.toLowerCase(java.util.Locale.ROOT)))
+                                .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(rem))
+                                .forEach(builder::suggest);
+                        } catch (Exception e) {}
                         return builder.buildFuture();
                     })
                     .executes(ctx -> navigateTo(ctx.getSource(), StringArgumentType.getString(ctx, "shortcut_name"), "glow")))
+                
                 // /gps config
-                .then(ClientCommands.literal("config")
+                .then(Commands.literal("config")
                     .executes(ctx -> {
-                        Minecraft client = Minecraft.getInstance();
-                        client.execute(() -> client.gui.setScreen(new com.lumengps.gui.GpsConfigScreen(null)));
+                        sendConfigMenu(ctx.getSource());
                         return 1;
-                    }))
+                    })
+                    .then(Commands.literal("set")
+                        .then(Commands.argument("key", StringArgumentType.word())
+                            .then(Commands.argument("value", StringArgumentType.word())
+                                .executes(ctx -> {
+                                    String key = StringArgumentType.getString(ctx, "key");
+                                    boolean val = Boolean.parseBoolean(StringArgumentType.getString(ctx, "value"));
+                                    GpsConfig config = GpsConfig.getInstance();
+                                    
+                                    switch (key) {
+                                        case "intelligentMode" -> config.intelligentMode = val;
+                                        case "allowWater" -> config.allowWater = val;
+                                        case "allowLava" -> config.allowLava = val;
+                                        case "enableDeathWaypoint" -> config.enableDeathWaypoint = val;
+                                        case "enableLightPillar" -> config.enableLightPillar = val;
+                                        case "requireCompass" -> config.requireCompass = val;
+                                        case "showHud" -> config.showHud = val;
+                                        case "confirmOverwrite" -> config.confirmOverwrite = val;
+                                    }
+                                    config.save();
+                                    sendConfigMenu(ctx.getSource());
+                                    return 1;
+                                })
+                            )
+                        )
+                    )
+                )
 
                 // /gps help
-                .then(ClientCommands.literal("help")
+                .then(Commands.literal("help")
                     .executes(ctx -> {
                         sendHelp(ctx.getSource());
                         return 1;
                     }))
+
                 // /gps add <name>
-                .then(ClientCommands.literal("add")
-                    .then(ClientCommands.argument("name", StringArgumentType.word())
+                .then(Commands.literal("add")
+                    .then(Commands.argument("name", StringArgumentType.word())
                         .executes(ctx -> {
-                            String name = StringArgumentType.getString(ctx, "name");
-                            FabricClientCommandSource source = ctx.getSource();
-                            BlockPos pos = BlockPos.containing(source.getPlayer().position());
-                            String dimension = source.getPlayer().level().dimension().identifier().toString();
-                            return addWaypoint(source, name, pos, dimension, "glow");
+                            ServerPlayer p = ctx.getSource().getPlayerOrException();
+                            return addWaypoint(ctx.getSource(), StringArgumentType.getString(ctx, "name"), p.blockPosition(), p.level().dimension().identifier().toString(), "glow");
                         })
-                        .then(ClientCommands.argument("style", StringArgumentType.word())
+                        .then(Commands.argument("style", StringArgumentType.word())
                             .suggests((ctx, builder) -> {
                                 String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
                                 List.of("glow", "fire", "soul", "end", "emerald").stream()
@@ -106,440 +110,131 @@ public final class GpsCommand {
                                 return builder.buildFuture();
                             })
                             .executes(ctx -> {
-                                String name = StringArgumentType.getString(ctx, "name");
+                                ServerPlayer p = ctx.getSource().getPlayerOrException();
                                 String style = StringArgumentType.getString(ctx, "style").toLowerCase(java.util.Locale.ROOT);
-                                FabricClientCommandSource source = ctx.getSource();
-
-                                if (!List.of("glow", "fire", "soul", "end", "emerald").contains(style)) {
-                                    source.sendError(Component.literal(PREFIX)
-                                            .append(Component.translatable("lumengps.command.invalid_style", style)));
-                                    return 0;
-                                }
-
-                                BlockPos pos = BlockPos.containing(source.getPlayer().position());
-                                String dimension = source.getPlayer().level().dimension().identifier().toString();
-                                return addWaypoint(source, name, pos, dimension, style);
-                            }))))
-
-                // /gps addpos <name> <x> <y> <z> [style]
-                .then(ClientCommands.literal("addpos")
-                    .then(ClientCommands.argument("name", StringArgumentType.word())
-                        .then(ClientCommands.argument("x", IntegerArgumentType.integer())
-                            .then(ClientCommands.argument("y", IntegerArgumentType.integer())
-                                .then(ClientCommands.argument("z", IntegerArgumentType.integer())
-                                    .executes(ctx -> {
-                                        String name = StringArgumentType.getString(ctx, "name");
-                                        int x = IntegerArgumentType.getInteger(ctx, "x");
-                                        int y = IntegerArgumentType.getInteger(ctx, "y");
-                                        int z = IntegerArgumentType.getInteger(ctx, "z");
-                                        FabricClientCommandSource source = ctx.getSource();
-                                        BlockPos pos = new BlockPos(x, y, z);
-                                        String dimension = source.getPlayer().level().dimension().identifier().toString();
-                                        return addWaypoint(source, name, pos, dimension, "glow");
-                                    })
-                                    .then(ClientCommands.argument("style", StringArgumentType.word())
-                                        .suggests((ctx, builder) -> {
-                                            String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
-                                            List.of("glow", "fire", "soul", "end", "emerald").stream()
-                                                .filter(s -> s.startsWith(prefix))
-                                                .forEach(builder::suggest);
-                                            return builder.buildFuture();
-                                        })
-                                        .executes(ctx -> {
-                                            String name = StringArgumentType.getString(ctx, "name");
-                                            int x = IntegerArgumentType.getInteger(ctx, "x");
-                                            int y = IntegerArgumentType.getInteger(ctx, "y");
-                                            int z = IntegerArgumentType.getInteger(ctx, "z");
-                                            String style = StringArgumentType.getString(ctx, "style").toLowerCase(java.util.Locale.ROOT);
-                                            FabricClientCommandSource source = ctx.getSource();
-                                            BlockPos pos = new BlockPos(x, y, z);
-                                            String dimension = source.getPlayer().level().dimension().identifier().toString();
-
-                                            if (!List.of("glow", "fire", "soul", "end", "emerald").contains(style)) {
-                                                source.sendError(Component.literal(PREFIX)
-                                                        .append(Component.translatable("lumengps.command.invalid_style", style)));
-                                                return 0;
-                                            }
-
-                                            return addWaypoint(source, name, pos, dimension, style);
-                                        })))))))
+                                if (!List.of("glow", "fire", "soul", "end", "emerald").contains(style)) return 0;
+                                return addWaypoint(ctx.getSource(), StringArgumentType.getString(ctx, "name"), p.blockPosition(), p.level().dimension().identifier().toString(), style);
+                            })
+                        )
+                    )
+                )
 
                 // /gps go <name>
-                .then(ClientCommands.literal("go")
-                    .then(ClientCommands.argument("name", StringArgumentType.word())
+                .then(Commands.literal("go")
+                    .then(Commands.argument("name", StringArgumentType.word())
                         .suggests((ctx, builder) -> {
-                            String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
-                            WaypointManager.getInstance().listNames().stream()
-                                .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
-                                .forEach(builder::suggest);
+                            try {
+                                ServerPlayer player = ctx.getSource().getPlayerOrException();
+                                String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                                WaypointManager.get(player.getUUID()).listNames().stream()
+                                    .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
+                                    .forEach(builder::suggest);
+                            } catch (Exception e) {}
                             return builder.buildFuture();
                         })
                         .executes(ctx -> navigateTo(ctx.getSource(), StringArgumentType.getString(ctx, "name"), "glow"))))
 
-                // /gps remove <name> — shows a confirmation prompt
-                .then(ClientCommands.literal("remove")
-                    .then(ClientCommands.argument("name", StringArgumentType.word())
-                        .suggests((ctx, builder) -> {
-                            String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
-                            WaypointManager.getInstance().listNames().stream()
-                                .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
-                                .forEach(builder::suggest);
-                            return builder.buildFuture();
-                        })
-                        .executes(ctx -> {
-                            String name = StringArgumentType.getString(ctx, "name");
-                            FabricClientCommandSource source = ctx.getSource();
-
-                            if (WaypointManager.getInstance().get(name).isEmpty()) {
-                                source.sendError(Component.literal(PREFIX)
-                                        .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
-                                return 0;
-                            }
-
-                            // Show confirmation prompt instead of deleting immediately
-                            source.sendFeedback(buildRemoveConfirmation(name));
-                            return 1;
-                        })))
-
-                // /gps remove_confirm <name> — internal command, called by the [✓ Yes] button
-                .then(ClientCommands.literal("remove_confirm")
-                    .then(ClientCommands.argument("name", StringArgumentType.word())
-                        .executes(ctx -> {
-                            String name = StringArgumentType.getString(ctx, "name");
-                            FabricClientCommandSource source = ctx.getSource();
-
-                            if (WaypointManager.getInstance().remove(name)) {
-                                source.sendFeedback(Component.literal(PREFIX)
-                                        .append(Component.translatable("lumengps.command.waypoint_removed", name)));
-                                return 1;
-                            } else {
-                                source.sendError(Component.literal(PREFIX)
-                                        .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
-                                return 0;
-                            }
-                        })))
-
-                // /gps add_overwrite <id> — internal command, called by the [✓ Replace] button
-                .then(ClientCommands.literal("add_overwrite")
-                    .then(ClientCommands.argument("id", StringArgumentType.word())
-                        .executes(ctx -> {
-                            String id = StringArgumentType.getString(ctx, "id");
-                            FabricClientCommandSource source = ctx.getSource();
-
-                            Optional<WaypointManager.PendingAdd> pending = WaypointManager.getInstance().consumePending(id);
-                            if (pending.isEmpty()) {
-                                source.sendError(Component.literal(PREFIX)
-                                        .append(Component.translatable("lumengps.command.add_overwrite_expired")));
-                                return 0;
-                            }
-
-                            WaypointManager.PendingAdd p = pending.get();
-                            WaypointManager.getInstance().add(p.name(), p.pos(), p.dimension(), p.style());
-                            source.sendFeedback(Component.literal(PREFIX)
-                                    .append(Component.translatable("lumengps.command.add_overwrite_done", p.name())));
-                            return 1;
-                        })))
-
-                // /gps add_overwrite_cancel <id> — internal command, called by the [✗ Cancel] button
-                .then(ClientCommands.literal("add_overwrite_cancel")
-                    .then(ClientCommands.argument("id", StringArgumentType.word())
-                        .executes(ctx -> {
-                            WaypointManager.getInstance().removePending(StringArgumentType.getString(ctx, "id"));
-                            return 1;
-                        })))
-
-                // /gps share <name> — posts waypoint info in public chat
-                .then(ClientCommands.literal("share")
-                    .then(ClientCommands.argument("name", StringArgumentType.word())
-                        .suggests((ctx, builder) -> {
-                            String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
-                            WaypointManager.getInstance().listNames().stream()
-                                .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
-                                .forEach(builder::suggest);
-                            return builder.buildFuture();
-                        })
-                        .executes(ctx -> {
-                            String name = StringArgumentType.getString(ctx, "name");
-                            FabricClientCommandSource source = ctx.getSource();
-                            Optional<Waypoint> waypointOpt = WaypointManager.getInstance().get(name);
-
-                            if (waypointOpt.isEmpty()) {
-                                source.sendError(Component.literal(PREFIX)
-                                        .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
-                                return 0;
-                            }
-
-                            BlockPos pos = waypointOpt.get().pos();
-                            String style = waypointOpt.get().style();
-                            // Send a public chat message that ALL players see (must be plain text, no § or server kicks)
-                            String plainMsg = String.format("[LumenGPS] Shared Waypoint: '%s' at %d, %d, %d (Style: %s)",
-                                    name, pos.getX(), pos.getY(), pos.getZ(), style);
-                            source.getPlayer().connection.sendChat(plainMsg);
-                            
-                            // Send private confirmation
-                            source.sendFeedback(Component.literal(PREFIX)
-                                    .append(Component.translatable("lumengps.command.share.feedback", name)));
-                            return 1;
-                        })))
-
                 // /gps clear
-                .then(ClientCommands.literal("clear")
+                .then(Commands.literal("clear")
                     .executes(ctx -> {
-                        GpsRenderer.getInstance().clear();
-                        ctx.getSource().sendFeedback(Component.literal(PREFIX)
-                                .append(Component.translatable("lumengps.command.route_cleared")));
+                        try {
+                            ServerPlayer player = ctx.getSource().getPlayerOrException();
+                            ServerGpsManager.getInstance().clear(player.getUUID());
+                            ctx.getSource().sendSuccess(() -> Component.literal(PREFIX).append("Route cleared."), false);
+                        } catch (Exception e) {}
                         return 1;
                     }))
 
                 // /gps list
-                .then(ClientCommands.literal("list")
+                .then(Commands.literal("list")
                     .executes(ctx -> {
-                        List<String> names = WaypointManager.getInstance().listNames();
-                        FabricClientCommandSource source = ctx.getSource();
-
-                        if (names.isEmpty()) {
-                            source.sendFeedback(Component.literal(PREFIX)
-                                    .append(Component.translatable("lumengps.command.no_waypoints_saved")));
-                        } else {
-                            String currentDim = source.getPlayer().level().dimension().identifier().toString();
-                            source.sendFeedback(Component.literal(PREFIX)
-                                    .append(Component.translatable("lumengps.command.saved_waypoints_list", String.valueOf(names.size()))));
-                            names.forEach(n -> source.sendFeedback(buildWaypointListEntry(n, currentDim)));
-                        }
+                        try {
+                            ServerPlayer player = ctx.getSource().getPlayerOrException();
+                            List<String> names = WaypointManager.get(player.getUUID()).listNames();
+                            if (names.isEmpty()) {
+                                ctx.getSource().sendSuccess(() -> Component.literal(PREFIX).append("No waypoints saved."), false);
+                            } else {
+                                ctx.getSource().sendSuccess(() -> Component.literal(PREFIX + "Saved waypoints: " + String.join(", ", names)), false);
+                            }
+                        } catch (Exception e) {}
                         return 1;
                     }))
         );
     }
 
-    // -----------------------------------------------------------------------
-    // Helpers
-    // -----------------------------------------------------------------------
+    private static void sendConfigMenu(CommandSourceStack source) {
+        GpsConfig c = GpsConfig.getInstance();
+        MutableComponent text = Component.literal("\n§e=== LumenGPS Server Config ===§r\n");
+        text.append(makeToggleRow("Intelligent Mode", "intelligentMode", c.intelligentMode));
+        text.append(makeToggleRow("Allow Water", "allowWater", c.allowWater));
+        text.append(makeToggleRow("Allow Lava", "allowLava", c.allowLava));
+        text.append(makeToggleRow("Death Waypoint", "enableDeathWaypoint", c.enableDeathWaypoint));
+        text.append(makeToggleRow("Light Pillar", "enableLightPillar", c.enableLightPillar));
+        text.append(makeToggleRow("Require Compass", "requireCompass", c.requireCompass));
+        text.append(makeToggleRow("Show HUD (Actionbar)", "showHud", c.showHud));
+        text.append(makeToggleRow("Confirm Overwrite", "confirmOverwrite", c.confirmOverwrite));
+        source.sendSuccess(() -> text, false);
+    }
 
-    private static int goCommand(com.mojang.brigadier.context.CommandContext<FabricClientCommandSource> context) {
-        FabricClientCommandSource source = context.getSource();
-        String name = StringArgumentType.getString(context, "name");
-        String style = GpsRenderer.getInstance().getActiveStyle();
-        if (style == null) style = "glow";
+    private static Component makeToggleRow(String label, String key, boolean current) {
+        String state = current ? "§aON " : "§cOFF";
+        MutableComponent row = Component.literal("§7- " + label + ": " + state + " ");
+        row.append(Component.literal("§e[Toggle]§r\n")
+            .withStyle(style -> style
+                .withClickEvent(new ClickEvent.RunCommand("/gps config set " + key + " " + !current))
+                .withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to toggle")))
+            ));
+        return row;
+    }
 
-        // Check Compass requirement
-        if (com.lumengps.data.GpsConfig.getInstance().requireCompass) {
-            boolean holdingCompass = source.getPlayer().getMainHandItem().is(net.minecraft.world.item.Items.COMPASS) ||
-                                     source.getPlayer().getOffhandItem().is(net.minecraft.world.item.Items.COMPASS);
-            if (!holdingCompass) {
-                source.sendError(Component.literal(PREFIX)
-                        .append(Component.translatable("lumengps.command.compass_required")));
+    private static void sendHelp(CommandSourceStack source) {
+        source.sendSuccess(() -> Component.literal("§b=== LumenGPS Help ===§r\n" +
+                "/gps add <name> [style] - Save waypoint\n" +
+                "/gps go <name> - Navigate to waypoint\n" +
+                "/gps clear - Clear active route\n" +
+                "/gps list - List waypoints\n" +
+                "/gps config - Open config menu"), false);
+    }
+
+    private static int addWaypoint(CommandSourceStack source, String name, BlockPos pos, String dim, String style) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            WaypointManager.get(player.getUUID()).add(name, pos, dim, style);
+            source.sendSuccess(() -> Component.literal(PREFIX + "Waypoint '" + name + "' added at " + pos.toShortString()), false);
+        } catch (Exception e) {}
+        return 1;
+    }
+
+    private static int navigateTo(CommandSourceStack source, String name, String fallbackStyle) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            UUID pid = player.getUUID();
+            WaypointManager wm = WaypointManager.get(pid);
+            Optional<Waypoint> opt = wm.getWaypoint(name);
+
+            if (opt.isEmpty()) {
+                source.sendFailure(Component.literal(PREFIX + "Waypoint '" + name + "' not found."));
                 return 0;
             }
-        }
 
-        return navigateTo(source, name, style);
-    }
-
-    /**
-     * Shared logic to navigate to a waypoint by name. Used by both
-     * {@code /gps go <name>} and the {@code /gps <name>} shortcut.
-     */
-    private static int navigateTo(FabricClientCommandSource source, String name, String style) {
-        Optional<Waypoint> waypointOpt = WaypointManager.getInstance().get(name);
-
-        if (waypointOpt.isEmpty()) {
-            source.sendError(Component.literal(PREFIX)
-                    .append(Component.translatable("lumengps.command.no_waypoint_found", name)));
-            return 0;
-        }
-
-        BlockPos goal  = waypointOpt.get().pos();
-        String   targetDim = waypointOpt.get().dimension();
-        BlockPos start = BlockPos.containing(source.getPlayer().position());
-        Level    world = source.getPlayer().level();
-        String   currentDim = world.dimension().identifier().toString();
-
-        if (!currentDim.equals(targetDim)) {
-            source.sendError(Component.literal(PREFIX)
-                    .append(Component.translatable("lumengps.command.dimension_mismatch", name, formatDim(targetDim))));
-            return 0;
-        }
-
-        // --- Elytra Detection ---
-        // If the player is wearing an Elytra, we enable flight-mode pathfinding.
-        boolean isElytraMode = source.getPlayer().getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).is(net.minecraft.world.item.Items.ELYTRA);
-        String finalStyle = (isElytraMode && style.equals("glow")) ? "end" : style;
-
-        source.sendFeedback(Component.literal(PREFIX)
-                .append(Component.translatable("lumengps.command.calculating_route", name)));
-
-        Pathfinder.computeAsync(world, start, goal, isElytraMode, (PathResult result) -> {
-            if (result.isEmpty()) {
-                source.sendError(Component.literal(PREFIX)
-                        .append(Component.translatable("lumengps.command.route_not_found", name)));
-                return;
+            Waypoint wp = opt.get();
+            if (!wp.dimension().equals(player.level().dimension().identifier().toString())) {
+                source.sendFailure(Component.literal(PREFIX + "Waypoint is in a different dimension (" + wp.dimension() + ")."));
+                return 0;
             }
-            GpsRenderer.getInstance().setRoute(result.points(), name, net.minecraft.world.phys.Vec3.atCenterOf(goal), isElytraMode, finalStyle);
-            if (result.isFallback()) {
-                source.sendFeedback(Component.literal(PREFIX)
-                        .append(Component.translatable("lumengps.command.route_blocked_fallback", name, String.valueOf(result.points().size()))));
-            } else {
-                source.sendFeedback(Component.literal(PREFIX)
-                        .append(Component.translatable("lumengps.command.route_found", String.valueOf(result.points().size()))));
-            }
-        });
+
+            source.sendSuccess(() -> Component.literal(PREFIX + "Computing path..."), false);
+            
+            Pathfinder.computeAsync((ServerLevel) player.level(), player.blockPosition(), wp.pos(), false, result -> {
+                if (result.points().isEmpty()) {
+                    source.sendFailure(Component.literal(PREFIX + "Could not find a path."));
+                } else {
+                    ServerGpsManager.getInstance().setRoute(pid, result.points(), name, result.points().get(result.points().size() - 1), false, wp.style());
+                    source.sendSuccess(() -> Component.literal(PREFIX + "Path calculated! Follow the particles."), false);
+                }
+            });
+
+        } catch (Exception e) {}
         return 1;
-    }
-
-    /**
-     * Shared save logic used by both {@code /gps add} and {@code /gps addpos}.
-     * If a waypoint with the same name already exists and
-     * {@code GpsConfig.confirmOverwrite} is enabled, emits an inline
-     * confirmation prompt instead of overwriting immediately.
-     */
-    private static int addWaypoint(FabricClientCommandSource source, String name,
-                                   BlockPos pos, String dimension, String style) {
-        WaypointManager mgr = WaypointManager.getInstance();
-        if (com.lumengps.data.GpsConfig.getInstance().confirmOverwrite && mgr.get(name).isPresent()) {
-            String id = mgr.putPending(new WaypointManager.PendingAdd(name, pos, dimension, style));
-            source.sendFeedback(buildAddOverwriteConfirmation(name, id));
-            return 1;
-        }
-        mgr.add(name, pos, dimension, style);
-        source.sendFeedback(Component.literal(PREFIX)
-                .append(Component.translatable("lumengps.command.waypoint_saved", name, formatPos(pos))));
-        return 1;
-    }
-
-    /**
-     * Builds a single interactive chat line for a waypoint in /gps list.
-     * Format:  §e• name§r (Dim)  [▶ Go]  [📤 Share]  [✗ Remove]
-     */
-    private static MutableComponent buildWaypointListEntry(String name, String currentDim) {
-        Optional<Waypoint> waypointOpt = WaypointManager.getInstance().get(name);
-        if (waypointOpt.isEmpty()) return Component.literal("  §e• §f" + name);
-
-        Waypoint wp = waypointOpt.get();
-        MutableComponent entry = Component.literal("  §e• §f" + name + "§r ");
-
-        // Add dimension tag if different
-        if (!wp.dimension().equals(currentDim)) {
-            entry.append("§7[" + formatDim(wp.dimension()) + "]§r ");
-        }
-
-        // [▶ Go] — green
-        MutableComponent goBtn = Component.literal("§a[▶ Go]§r")
-                .withStyle(s -> s
-                        .withClickEvent(new ClickEvent.RunCommand("/gps go " + name))
-                        .withHoverEvent(new HoverEvent.ShowText(
-                                Component.translatable("lumengps.command.list.go_hint", name))));
-
-        // [📤 Share] — aqua
-        MutableComponent shareBtn = Component.literal(" §b[📤 Share]§r")
-                .withStyle(s -> s
-                        .withClickEvent(new ClickEvent.RunCommand("/gps share " + name))
-                        .withHoverEvent(new HoverEvent.ShowText(
-                                Component.translatable("lumengps.command.list.share_hint", name))));
-
-        // [✗ Remove] — red, now triggers confirmation
-        MutableComponent removeBtn = Component.literal(" §c[✗ Remove]§r")
-                .withStyle(s -> s
-                        .withClickEvent(new ClickEvent.RunCommand("/gps remove " + name))
-                        .withHoverEvent(new HoverEvent.ShowText(
-                                Component.translatable("lumengps.command.list.remove_hint", name))));
-
-        return entry.append(goBtn).append(shareBtn).append(removeBtn);
-    }
-
-    /**
-     * Builds the inline confirmation prompt shown when clicking [✗ Remove].
-     * Format:  §b[LumenGPS]§r Remove 'name'? [✓ Yes] [✗ Cancel]
-     */
-    private static MutableComponent buildRemoveConfirmation(String name) {
-        MutableComponent msg = Component.literal(PREFIX)
-                .append(Component.translatable("lumengps.command.remove_confirm_prompt", name))
-                .append(Component.literal("  "));
-
-        // [✓ Yes] — green, actually deletes
-        MutableComponent yes = Component.literal("§a[✓ Yes]§r")
-                .withStyle(s -> s
-                        .withClickEvent(new ClickEvent.RunCommand("/gps remove_confirm " + name))
-                        .withHoverEvent(new HoverEvent.ShowText(
-                                Component.translatable("lumengps.command.remove_confirm_yes_hint", name))));
-
-        // [✗ Cancel] — grey, does nothing (suggest harmless no-op)
-        MutableComponent cancel = Component.literal(" §7[✗ Cancel]§r")
-                .withStyle(s -> s
-                        .withClickEvent(new ClickEvent.RunCommand("/gps list"))
-                        .withHoverEvent(new HoverEvent.ShowText(
-                                Component.translatable("lumengps.command.remove_confirm_cancel_hint"))));
-
-        return msg.append(yes).append(cancel);
-    }
-
-    /**
-     * Builds the inline confirmation prompt shown when /gps add or /gps addpos
-     * targets a name that already exists. Format:
-     *   §b[LumenGPS]§r Waypoint 'name' already exists. Replace it?  [✓ Replace]  [✗ Cancel]
-     */
-    private static MutableComponent buildAddOverwriteConfirmation(String name, String id) {
-        MutableComponent msg = Component.literal(PREFIX)
-                .append(Component.translatable("lumengps.command.add_overwrite_prompt", name))
-                .append(Component.literal("  "));
-
-        // [✓ Replace] — green, commits the pending save
-        MutableComponent replace = Component.literal("§a[✓ Replace]§r")
-                .withStyle(s -> s
-                        .withClickEvent(new ClickEvent.RunCommand("/gps add_overwrite " + id))
-                        .withHoverEvent(new HoverEvent.ShowText(
-                                Component.translatable("lumengps.command.add_overwrite_yes_hint", name))));
-
-        // [✗ Cancel] — grey, discards the pending save
-        MutableComponent cancel = Component.literal(" §7[✗ Cancel]§r")
-                .withStyle(s -> s
-                        .withClickEvent(new ClickEvent.RunCommand("/gps add_overwrite_cancel " + id))
-                        .withHoverEvent(new HoverEvent.ShowText(
-                                Component.translatable("lumengps.command.add_overwrite_cancel_hint"))));
-
-        return msg.append(replace).append(cancel);
-    }
-
-    /**
-     * Builds the private feedback message sent to the sharer after /gps share.
-     * Contains a clickable [+ Add Waypoint] button that pre-fills /gps addpos in chat.
-     */
-    private static MutableComponent buildShareFeedback(String name, BlockPos pos, String dimension, String style) {
-        String addCmd = "/gps addpos " + name + " " + pos.getX() + " " + pos.getY() + " " + pos.getZ() + " " + style;
-
-        MutableComponent addBtn = Component.literal("§a[+ Add Waypoint]§r")
-                .withStyle(s -> s
-                        // SuggestCommand fills the command bar so the user can review before running
-                        .withClickEvent(new ClickEvent.SuggestCommand(addCmd))
-                        .withHoverEvent(new HoverEvent.ShowText(
-                                Component.translatable("lumengps.command.share.add_hint", name))));
-
-        return Component.literal(PREFIX)
-                .append(Component.translatable("lumengps.command.share.feedback", name))
-                .append(" ")
-                .append(addBtn);
-    }
-
-    private static String formatDim(String dimension) {
-        return switch (dimension) {
-            case "minecraft:overworld" -> "Overworld";
-            case "minecraft:the_nether" -> "Nether";
-            case "minecraft:the_end" -> "The End";
-            default -> dimension.replace("minecraft:", "");
-        };
-    }
-
-    private static void sendHelp(FabricClientCommandSource source) {
-        source.sendFeedback(Component.translatable("lumengps.command.help.header"));
-        source.sendFeedback(Component.translatable("lumengps.command.help.add"));
-        source.sendFeedback(Component.translatable("lumengps.command.help.addpos"));
-        source.sendFeedback(Component.translatable("lumengps.command.help.go"));
-        source.sendFeedback(Component.translatable("lumengps.command.help.list"));
-        source.sendFeedback(Component.translatable("lumengps.command.help.share"));
-        source.sendFeedback(Component.translatable("lumengps.command.help.remove"));
-        source.sendFeedback(Component.translatable("lumengps.command.help.clear"));
-    }
-
-    private static String formatPos(BlockPos pos) {
-        return "§7(" + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + ")§r";
     }
 }

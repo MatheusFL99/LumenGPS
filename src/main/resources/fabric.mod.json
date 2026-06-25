@@ -8,11 +8,10 @@
   "contact": {},
   "license": "MIT",
   "icon": "assets/lumengps/icon.png",
-  "environment": "client",
+  "environment": "*",
 
   "entrypoints": {
-    "main": ["com.lumengps.LumenGPS"],
-    "client": ["com.lumengps.LumenGPSClient"]
+    "main": ["com.lumengps.LumenGPS"]
   },
 
   "mixins": ["lumengps.mixins.json"],
