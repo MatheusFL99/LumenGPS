@@ -19,6 +19,10 @@ import java.util.*;
  */
 public final class ServerWaypointManager {
 
+    private static final Path FILE_PATH = Path.of("config", "lumengps", "server_waypoints.json");
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Type DTO_MAP_TYPE = new TypeToken<Map<String, WaypointDto>>() {}.getType();
+
     private static final ServerWaypointManager INSTANCE = new ServerWaypointManager();
 
     public static ServerWaypointManager getInstance() {
@@ -26,10 +30,6 @@ public final class ServerWaypointManager {
     }
 
     private record WaypointDto(int x, int y, int z, String dimension, String style) {}
-
-    private static final Path FILE_PATH = Path.of("config", "lumengps", "server_waypoints.json");
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Type DTO_MAP_TYPE = new TypeToken<Map<String, WaypointDto>>() {}.getType();
 
     private final Map<String, Waypoint> waypoints = new LinkedHashMap<>();
 
