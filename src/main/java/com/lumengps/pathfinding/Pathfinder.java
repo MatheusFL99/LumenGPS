@@ -23,7 +23,7 @@ import java.util.function.Consumer;
 public final class Pathfinder {
 
     /** Safety cap: abort search after this many expanded nodes. */
-    private static final int MAX_NODES = 300_000;
+    private static final int MAX_NODES = 400_000;
 
     /** Wall-clock time limit per search (milliseconds). Increased to allow disk reads. */
     private static final long MAX_TIME_MS = 8_000;
