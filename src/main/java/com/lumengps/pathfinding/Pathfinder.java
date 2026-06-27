@@ -23,10 +23,18 @@ import java.util.function.Consumer;
 public final class Pathfinder {
 
     /** Safety cap: abort search after this many expanded nodes. */
-    private static final int MAX_NODES = 100_000;
+    private static final int MAX_NODES = 300_000;
 
     /** Wall-clock time limit per search (milliseconds). Increased to allow disk reads. */
     private static final long MAX_TIME_MS = 8_000;
+
+    /**
+     * Weighted A* multiplier applied to the heuristic.
+     * Values > 1.0 make the search greedier (faster, less optimal path).
+     * 3.0 means A* aggressively prefers nodes closer to the goal, dramatically
+     * reducing the search space for long-distance routes.
+     */
+    private static final double HEURISTIC_WEIGHT = 3.0;
 
     /** Spacing between interpolated waypoints (in blocks). */
     private static final double POINT_SPACING = 0.5;
@@ -133,14 +141,18 @@ public final class Pathfinder {
 
                 if (newG < bestG.getOrDefault(nb, Double.MAX_VALUE)) {
                     bestG.put(nb, newG);
-                    open.add(new PathNode(nb, newG, heuristic(nb, goal), current, newFall));
+                    open.add(new PathNode(nb, newG, HEURISTIC_WEIGHT * heuristic(nb, goal), current, newFall));
                 }
             }
         }
 
         if (closestNode != null && minH < heuristic(start, goal) - 5.0) {
-            List<Vec3> partialPath = interpolate(reconstructPath(closestNode));
-            return new PathResult(partialPath, true);
+            // A* found progress toward the goal but hit the node/time cap.
+            // Build a combined path: real terrain up to the furthest point reached,
+            // then a crow-fly aerial extension to guide the player the rest of the way.
+            List<Vec3> partialPath = new ArrayList<>(interpolate(reconstructPath(closestNode)));
+            appendCrowFly(partialPath, closestNode.pos, goal);
+            return new PathResult(Collections.unmodifiableList(partialPath), true);
         }
 
         return crowFlyFallback(start, goal);
@@ -156,22 +168,31 @@ public final class Pathfinder {
      * clears most terrain and acts as a visual compass for the player.
      */
     private static PathResult crowFlyFallback(BlockPos start, BlockPos goal) {
-        double y     = Math.max(start.getY(), goal.getY()) + CROW_FLY_ELEVATION;
-        Vec3   from  = new Vec3(start.getX() + 0.5, y, start.getZ() + 0.5);
-        Vec3   to    = new Vec3(goal.getX()  + 0.5, y, goal.getZ()  + 0.5);
-        double len   = from.distanceTo(to);
+        List<Vec3> points = new ArrayList<>();
+        appendCrowFly(points, start, goal);
+        return new PathResult(Collections.unmodifiableList(points), true);
+    }
+
+    /**
+     * Appends an elevated straight-line segment from {@code from} to {@code goal}
+     * into an existing mutable list of points. Used to extend partial A* paths
+     * so the player always gets guidance all the way to the destination.
+     */
+    private static void appendCrowFly(List<Vec3> points, BlockPos from, BlockPos goal) {
+        double y    = Math.max(from.getY(), goal.getY()) + CROW_FLY_ELEVATION;
+        Vec3   src  = new Vec3(from.getX() + 0.5, y, from.getZ() + 0.5);
+        Vec3   dest = new Vec3(goal.getX() + 0.5, y, goal.getZ() + 0.5);
+        double len  = src.distanceTo(dest);
         int    steps = Math.max(1, (int) Math.ceil(len / POINT_SPACING));
 
-        List<Vec3> points = new ArrayList<>(steps + 1);
         for (int i = 0; i <= steps; i++) {
             double t = (double) i / steps;
             points.add(new Vec3(
-                    from.x + (to.x - from.x) * t,
-                    from.y,
-                    from.z + (to.z - from.z) * t
+                    src.x + (dest.x - src.x) * t,
+                    src.y,
+                    src.z + (dest.z - src.z) * t
             ));
         }
-        return new PathResult(Collections.unmodifiableList(points), true);
     }
 
     // -----------------------------------------------------------------------
