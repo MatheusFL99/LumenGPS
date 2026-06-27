@@ -162,7 +162,7 @@ public final class GpsCommand {
                         })
                     )
                 )
-                // /gps go <name>
+                // /gps go <name> [scope]
                 .then(Commands.literal("go")
                     .then(Commands.argument("name", StringArgumentType.string())
                         .suggests((ctx, builder) -> {
@@ -172,12 +172,19 @@ public final class GpsCommand {
                                 WaypointManager.get(player.getUUID()).listNames().stream()
                                     .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
                                     .forEach(builder::suggest);
+                                ServerWaypointManager.getInstance().listNames().stream()
+                                    .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
+                                    .forEach(builder::suggest);
                             } catch (Exception e) {}
                             return builder.buildFuture();
                         })
-                        .executes(ctx -> navigateTo(ctx.getSource(), StringArgumentType.getString(ctx, "name"), "glow"))))
+                        .executes(ctx -> navigateTo(ctx.getSource(), StringArgumentType.getString(ctx, "name"), null))
+                        .then(Commands.argument("scope", StringArgumentType.word())
+                            .executes(ctx -> navigateTo(ctx.getSource(), StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "scope"))))
+                    )
+                )
 
-                // /gps share <name>
+                // /gps share <name> [scope]
                 .then(Commands.literal("share")
                     .then(Commands.argument("name", StringArgumentType.string())
                         .suggests((ctx, builder) -> {
@@ -187,10 +194,17 @@ public final class GpsCommand {
                                 WaypointManager.get(player.getUUID()).listNames().stream()
                                     .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
                                     .forEach(builder::suggest);
+                                ServerWaypointManager.getInstance().listNames().stream()
+                                    .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
+                                    .forEach(builder::suggest);
                             } catch (Exception e) {}
                             return builder.buildFuture();
                         })
-                        .executes(ctx -> shareWaypoint(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
+                        .executes(ctx -> shareWaypoint(ctx.getSource(), StringArgumentType.getString(ctx, "name"), null))
+                        .then(Commands.argument("scope", StringArgumentType.word())
+                            .executes(ctx -> shareWaypoint(ctx.getSource(), StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "scope"))))
+                    )
+                )
 
                 // /gps remove <name>
                 .then(Commands.literal("remove")
@@ -554,23 +568,56 @@ public final class GpsCommand {
         } catch (Exception e) {}
     }
 
-    private static int navigateTo(CommandSourceStack source, String name, String fallbackStyle) {
+    private static int navigateTo(CommandSourceStack source, String name, String scope) {
         try {
             ServerPlayer player = source.getPlayerOrException();
             UUID pid = player.getUUID();
+            
             WaypointManager wm = WaypointManager.get(pid);
-            Optional<Waypoint> opt = wm.getWaypoint(name);
-
-            if (opt.isEmpty()) {
-                opt = ServerWaypointManager.getInstance().getWaypoint(name);
+            ServerWaypointManager swm = ServerWaypointManager.getInstance();
+            
+            Optional<Waypoint> personalOpt = wm.getWaypoint(name);
+            Optional<Waypoint> serverOpt = swm.getWaypoint(name);
+            
+            Optional<Waypoint> targetOpt = Optional.empty();
+            
+            if (scope == null) {
+                if (personalOpt.isPresent() && serverOpt.isPresent()) {
+                    // Conflict found: both exist
+                    MutableComponent msg = Component.literal(PREFIX + "Existem dois waypoints com o nome '" + name + "'. Qual deseja seguir? ");
+                    
+                    String cmdPersonal = String.format("/gps go \"%s\" personal", name.replace("\"", "\\\""));
+                    String cmdServer = String.format("/gps go \"%s\" server", name.replace("\"", "\\\""));
+                    
+                    msg.append(Component.literal("§a[Pessoal]§r")
+                        .withStyle(s -> s
+                            .withClickEvent(new ClickEvent.RunCommand(cmdPersonal))
+                            .withHoverEvent(new HoverEvent.ShowText(Component.literal("Seguir waypoint pessoal")))));
+                    
+                    msg.append(Component.literal(" §d[Servidor]§r")
+                        .withStyle(s -> s
+                            .withClickEvent(new ClickEvent.RunCommand(cmdServer))
+                            .withHoverEvent(new HoverEvent.ShowText(Component.literal("Seguir waypoint do servidor")))));
+                    
+                    source.sendSuccess(() -> msg, false);
+                    return 1;
+                } else if (personalOpt.isPresent()) {
+                    targetOpt = personalOpt;
+                } else {
+                    targetOpt = serverOpt;
+                }
+            } else if ("personal".equalsIgnoreCase(scope)) {
+                targetOpt = personalOpt;
+            } else if ("server".equalsIgnoreCase(scope)) {
+                targetOpt = serverOpt;
             }
-
-            if (opt.isEmpty()) {
+            
+            if (targetOpt.isEmpty()) {
                 source.sendFailure(Component.literal(PREFIX + "Waypoint '" + name + "' não encontrado."));
                 return 0;
             }
 
-            Waypoint wp = opt.get();
+            Waypoint wp = targetOpt.get();
             if (!wp.dimension().equals(player.level().dimension().identifier().toString())) {
                 source.sendFailure(Component.literal(PREFIX + "Waypoint está em uma dimensão diferente (" + formatDim(wp.dimension()) + ")."));
                 return 0;
@@ -591,19 +638,55 @@ public final class GpsCommand {
         return 1;
     }
 
-    private static int shareWaypoint(CommandSourceStack source, String name) {
+    private static int shareWaypoint(CommandSourceStack source, String name, String scope) {
         try {
             ServerPlayer player = source.getPlayerOrException();
-            Optional<Waypoint> opt = WaypointManager.get(player.getUUID()).getWaypoint(name);
-            if (opt.isEmpty()) {
-                opt = ServerWaypointManager.getInstance().getWaypoint(name);
+            
+            WaypointManager wm = WaypointManager.get(player.getUUID());
+            ServerWaypointManager swm = ServerWaypointManager.getInstance();
+            
+            Optional<Waypoint> personalOpt = wm.getWaypoint(name);
+            Optional<Waypoint> serverOpt = swm.getWaypoint(name);
+            
+            Optional<Waypoint> targetOpt = Optional.empty();
+            
+            if (scope == null) {
+                if (personalOpt.isPresent() && serverOpt.isPresent()) {
+                    // Conflict found: both exist
+                    MutableComponent msg = Component.literal(PREFIX + "Existem dois waypoints com o nome '" + name + "'. Qual deseja compartilhar? ");
+                    
+                    String cmdPersonal = String.format("/gps share \"%s\" personal", name.replace("\"", "\\\""));
+                    String cmdServer = String.format("/gps share \"%s\" server", name.replace("\"", "\\\""));
+                    
+                    msg.append(Component.literal("§a[Pessoal]§r")
+                        .withStyle(s -> s
+                            .withClickEvent(new ClickEvent.RunCommand(cmdPersonal))
+                            .withHoverEvent(new HoverEvent.ShowText(Component.literal("Compartilhar waypoint pessoal")))));
+                    
+                    msg.append(Component.literal(" §d[Servidor]§r")
+                        .withStyle(s -> s
+                            .withClickEvent(new ClickEvent.RunCommand(cmdServer))
+                            .withHoverEvent(new HoverEvent.ShowText(Component.literal("Compartilhar waypoint do servidor")))));
+                    
+                    source.sendSuccess(() -> msg, false);
+                    return 1;
+                } else if (personalOpt.isPresent()) {
+                    targetOpt = personalOpt;
+                } else {
+                    targetOpt = serverOpt;
+                }
+            } else if ("personal".equalsIgnoreCase(scope)) {
+                targetOpt = personalOpt;
+            } else if ("server".equalsIgnoreCase(scope)) {
+                targetOpt = serverOpt;
             }
-            if (opt.isEmpty()) {
+            
+            if (targetOpt.isEmpty()) {
                 source.sendFailure(Component.literal(PREFIX + "Waypoint '" + name + "' não encontrado."));
                 return 0;
             }
             
-            Waypoint wp = opt.get();
+            Waypoint wp = targetOpt.get();
             String playerName = player.getScoreboardName();
             
             MutableComponent msg = Component.literal(PREFIX + playerName + " compartilhou o Waypoint '§e" + name + "§r' em " + 
