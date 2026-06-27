@@ -40,7 +40,7 @@ public final class GpsCommand {
                     sendHelp(ctx.getSource());
                     return 1;
                 })
-                .then(Commands.argument("shortcut_name", StringArgumentType.word())
+                .then(Commands.argument("shortcut_name", StringArgumentType.string())
                     .suggests((ctx, builder) -> {
                         try {
                             ServerPlayer player = ctx.getSource().getPlayerOrException();
@@ -50,10 +50,14 @@ public final class GpsCommand {
                                 .filter(n -> !subCmds.contains(n.toLowerCase(java.util.Locale.ROOT)))
                                 .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(rem))
                                 .forEach(builder::suggest);
+                            ServerWaypointManager.getInstance().listNames().stream()
+                                .filter(n -> !subCmds.contains(n.toLowerCase(java.util.Locale.ROOT)))
+                                .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(rem))
+                                .forEach(builder::suggest);
                         } catch (Exception e) {}
                         return builder.buildFuture();
                     })
-                    .executes(ctx -> navigateTo(ctx.getSource(), StringArgumentType.getString(ctx, "shortcut_name"), "glow")))                
+                    .executes(ctx -> navigateTo(ctx.getSource(), StringArgumentType.getString(ctx, "shortcut_name"), null)))                
                 // /gps config
                 .then(Commands.literal("config")
                     .executes(ctx -> {
