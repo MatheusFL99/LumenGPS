@@ -105,7 +105,7 @@ public final class GpsCommand {
                 )
                 // /gps addpos <name> <x> <y> <z> <dim> <style>
                 .then(Commands.literal("addpos")
-                    .then(Commands.argument("name", StringArgumentType.word())
+                    .then(Commands.argument("name", StringArgumentType.string())
                         .then(Commands.argument("x", IntegerArgumentType.integer())
                             .then(Commands.argument("y", IntegerArgumentType.integer())
                                 .then(Commands.argument("z", IntegerArgumentType.integer())
@@ -351,8 +351,13 @@ public final class GpsCommand {
             MutableComponent msg = Component.literal(PREFIX + playerName + " compartilhou o Waypoint '§e" + name + "§r' em " + 
                                                    wp.pos().toShortString() + " na dimensão " + formatDim(wp.dimension()) + " ");
             
-            String cmd = String.format("/gps addpos \"%s\" %d %d %d \"%s\" \"%s\"",
-                    name, wp.pos().getX(), wp.pos().getY(), wp.pos().getZ(), wp.dimension(), wp.style());
+            // Build the command that other players will click to add this waypoint.
+            // name and dim use StringArgumentType.string(), so they need to be quoted.
+            // style uses StringArgumentType.word(), so no quotes needed.
+            String cmd = String.format("/gps addpos \"%s\" %d %d %d \"%s\" %s",
+                    name.replace("\"", "\\\""), // escape any quotes in the name
+                    wp.pos().getX(), wp.pos().getY(), wp.pos().getZ(),
+                    wp.dimension(), wp.style());
                     
             msg.append(Component.literal("§b[+ Adicionar]§r")
                 .withStyle(s -> s
