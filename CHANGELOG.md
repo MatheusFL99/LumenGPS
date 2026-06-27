@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Server-Side Mod Migration**: The mod is now fully server-side. Clients running vanilla Minecraft can see the glowing particle trails and execute all commands without installing the mod locally.
+- **Offline Chunk Pathfinding**: Pathfinder now loads block data directly from the server's `.mca` region files asynchronously when calculating routes through unloaded/unexplored chunks.
+- **Server-Wide Waypoints (Global)**: OPs can define global waypoints using `/gps server add <name>` that any player can see, list, and navigate to.
+- **Quoted / Escaped Arguments**: Supported names with spaces and special characters for shortcuts and arguments.
+- **Waypoint Name Conflict Resolution**: Prompts players with a chat dialog (`[Pessoal]` / `[Servidor]`) when a personal waypoint and a server waypoint share the same name.
+- **Clean Emoteless Buttons**: Removed `✓`, `✗`, `▶`, and `📤` icons from chat interfaces, replacing them with clean colored brackets (e.g. `[Ir]`, `[Compartilhar]`, `[Remover]`, `[Sim]`, `[Cancelar]`) for maximum chat aesthetic compliance.
+- **Confirmation Prompts on Overwrite**: Prevents accidental waypoint overwrites with interactive prompt confirmation before replacing a waypoint name.
+
+### Fixed
+- Fixed an issue where the shortcut command `/gps <nome>` failed when the second parameter clashed with the new conflict resolution scope argument.
+- Fixed a static class initialization order issue in `ServerWaypointManager` that caused `NullPointerException` on server startup.
+
+## [1.0.0] - 2026-05-13
+
+### Added
 - **Multi-Dimension Support**: Waypoints now track whether they belong to the Overworld, Nether, or End, preventing cross-dimension navigation errors.
 - **Per-World Storage**: Waypoints are now stored separately for each Singleplayer world and Multiplayer server.
 - **Remove Confirmation**: Clicking `[✗ Remove]` in the list now shows an inline confirmation with `[✓ Yes]` and `[✗ Cancel]` buttons before deleting.

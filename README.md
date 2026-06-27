@@ -6,18 +6,21 @@
 
 <h2 id="english">🇬🇧 English</h2>
 
-LumenGPS is a **client-side** mod for Minecraft Fabric that adds a GPS routing system using glowing particles. The mod uses an asynchronous A* (A-Star) pathfinding algorithm to guide players to saved waypoints without freezing the game.
+LumenGPS is a **server-side** mod for Minecraft Fabric that adds a GPS routing system using glowing particles. The mod uses an asynchronous A* (A-Star) pathfinding algorithm to guide players to saved waypoints.
 
-Since it is purely a *client-side* mod, **it works on any server** (Vanilla, Spigot, Paper, etc.) without requiring the server to have the mod installed.
+Since it is a **server-side** mod, **players do not need to install the mod on their client** to see the particle trail and use the commands! It runs fully on the server tick.
 
 ### 🌟 Features
 
-- **Absolute Client-Side:** Save points and trace routes locally. The server doesn't know you are using it.
-- **Visual Navigation (Glowing Trail):** Magical floating particles guide you along the correct path, avoiding obstacles, descending cliffs, and climbing blocks.
-- **Optimized A\* Pathfinding:** Route calculation runs on a secondary thread (Virtual Threads) and has a safety node limit (100k nodes) and a time limit (3 seconds), ensuring the game **never freezes**, even for unreachable destinations.
-- **Aerial Fallback (Crow-fly):** If the path is blocked (e.g., an impassable mountain) or too far to process within the time limit, the mod automatically creates a straight, elevated route pointing directly to the destination.
-- **Persistent Storage:** Waypoints are saved in a local JSON file in your Minecraft config folder.
-- **Automatic Route Cleanup:** The trail gradually disappears behind you as you walk along it.
+- **Fully Server-Side:** No client mod required! Players can see the glowing trail and use all commands using their vanilla Minecraft client.
+- **Offline Chunk Pathfinding:** Calculates paths even through unloaded or unexplored chunks by reading `.mca` region files directly from the server disk asynchronously.
+- **Visual Navigation (Glowing Trail):** Particles guide you along the correct path, avoiding obstacles, descending cliffs, and climbing blocks.
+- **Server Waypoints (Global):** Operators (OPs) can register global waypoints (like `/spawn`, `/village`) that any player can view and navigate to.
+- **Interactive Prompts (Emoteless & Safe):** Clickable chat actions with overwrite confirmations, removal prompts, and smart conflict resolution when personal and server waypoints share the same name.
+- **Optimized A\* Pathfinding:** Runs on Virtual Threads with an increased node limit (400k nodes) and an 8-second timeout, ensuring the server main thread **never freezes**.
+- **Aerial Fallback & Extension:** Generates straight elevated paths if A* fails, or extends a partial ground path with a straight line to guide you all the way.
+- **Persistent Storage:** Waypoints are stored in JSON format per-player and per-server in the server `config` directory.
+- **Automatic Route Cleanup:** The trail gradually disappears behind you as you walk.
 
 ### 🎮 Commands
 
@@ -26,29 +29,33 @@ All commands are under the `/gps` root. The mod uses the Fabric command API, off
 | Command | Description |
 |---------|-------------|
 | `/gps <name>` | Shortcut for `/gps go <name>`. Navigate instantly! |
-| `/gps add <name> [style]` | Saves your current position. Optional style: `glow`, `fire`, `soul`, `end`, `emerald`. |
-| `/gps addpos <name> <x> <y> <z> [style]` | Saves specific coordinates as a waypoint. |
-| `/gps list` | Lists waypoints with clickable `[▶ Go]`, `[📤 Share]`, and `[✗ Remove]` buttons. |
-| `/gps go <name>` | Calculates and displays the particle trail to the waypoint. |
-| `/gps share <name>` | Shares the waypoint in public chat with a `[+ Add Waypoint]` button. |
-| `/gps remove <name>` | Deletes a saved waypoint (with confirmation prompt). |
+| `/gps add <name>` | Saves your current position as a personal waypoint. |
+| `/gps addpos <name> <x> <y> <z> <dimension> <style>` | Saves specific coordinates as a personal waypoint. |
+| `/gps list` | Lists personal and server waypoints with clickable `[Ir]`, `[Compartilhar]`, and `[Remover]` (OP only) buttons. |
+| `/gps go <name> [scope]` | Calculates and displays the particle trail to the waypoint. |
+| `/gps share <name> [scope]` | Shares the waypoint in public chat with an `[Adicionar]` button. |
+| `/gps remove <name>` | Deletes a saved personal waypoint (with confirmation). |
 | `/gps clear` | Clears the active visual trail from the screen. |
+| `/gps server list` | Lists all server-wide waypoints. |
+| `/gps server add <name>` | Saves current position as a server-wide waypoint (OP only). |
+| `/gps server addpos <name> <x> <y> <z> <dimension> <style>` | Saves coordinates as a server-wide waypoint (OP only). |
+| `/gps server remove <name>` | Deletes a server-wide waypoint (OP only). |
 | `/gps` or `/gps help` | Shows the in-game command help menu. |
 
-### 🛠️ How to Install (Players)
+### 🛠️ How to Install (Servers)
 
-1. Install [Fabric Loader](https://fabricmc.net/use/installer/) for Minecraft **26.1.x**.
-2. Download [Fabric API](https://modrinth.com/mod/fabric-api) (version compatible with 26.1).
-3. Place the Fabric API `.jar` and the LumenGPS `.jar` in your `mods` folder (`%appdata%/.minecraft/mods`).
-4. Open the game and use `/gps`!
+1. Install [Fabric Loader](https://fabricmc.net/use/installer/) on your server compatible with Minecraft **26.2**.
+2. Download [Fabric API](https://modrinth.com/mod/fabric-api) (version compatible with 26.2).
+3. Place the Fabric API `.jar` and the LumenGPS `.jar` in your server's `mods` folder.
+4. Start the server and enjoy! Players can connect with vanilla clients and use all features.
 
 ### 💻 Development (Developers)
 
-LumenGPS is built using modern modding tools from the Fabric ecosystem for Minecraft 26.1+ (*unobfuscated* code).
+LumenGPS is built using modern modding tools from the Fabric ecosystem for Minecraft 26.2+ (*unobfuscated* code).
 
 #### Prerequisites
 - **Java 25** (JDK)
-- Minecraft 26.1.2 (configured in Gradle)
+- Minecraft 26.2 (configured in Gradle)
 
 #### Setup
 1. Clone the repository:
@@ -57,7 +64,6 @@ LumenGPS is built using modern modding tools from the Fabric ecosystem for Minec
    cd MinecraftWaypointMod
    ```
 2. Rebuild and generate VS Code / IntelliJ files:
-   The project already includes native configurations to compile using the Gradle Wrapper.
    ```bash
    .\gradlew.bat genSources
    ```
@@ -66,24 +72,25 @@ LumenGPS is built using modern modding tools from the Fabric ecosystem for Minec
 - `.\gradlew.bat build` - Compiles the project and generates the `.jar` in `build/libs/`.
 - `.\gradlew.bat runClient` - Starts a test Minecraft client with the mod already injected.
 
-> **VS Code Tip:** The project contains a `LumenGPS: Watch` task (Ctrl+Shift+P > Run Task) that runs in the background and automatically rebuilds the mod whenever you save a `.java` file.
-
 ---
 
 <h2 id="português">🇧🇷 Português</h2>
 
-LumenGPS é um mod **client-side** para Minecraft Fabric que adiciona um sistema de rotas por GPS utilizando partículas brilhantes. O mod utiliza o algoritmo de *pathfinding* A* (A-Star) processado de forma assíncrona para guiar o jogador até waypoints salvos, sem congelar o jogo.
+LumenGPS é um mod **server-side** para Minecraft Fabric que adiciona um sistema de rotas por GPS utilizando partículas brilhantes. O mod utiliza o algoritmo de *pathfinding* A* (A-Star) processado de forma assíncrona para guiar o jogador até waypoints salvos.
 
-Como é um mod puramente *client-side*, **funciona em qualquer servidor** (Vanilla, Spigot, Paper, etc.) sem precisar que o servidor tenha o mod instalado.
+Como é um mod puramente **server-side**, **os jogadores não precisam instalar o mod em seus computadores** para ver a trilha de partículas e usar os comandos! Ele roda inteiramente no tick do servidor.
 
 ### 🌟 Funcionalidades
 
-- **Client-side absoluto:** Salve pontos e trace rotas localmente. O servidor não sabe que você está usando.
-- **Navegação visual (Trilha Brilhante):** Partículas mágicas flutuantes guiam você pelo caminho correto, contornando obstáculos, descendo precipícios e subindo blocos.
-- **Pathfinding A\* otimizado:** O cálculo de rotas roda em uma thread secundária (Virtual Threads) e tem um limite de segurança (100k nós) e tempo (3 segundos), garantindo que o jogo **nunca trave**, mesmo para destinos inalcançáveis.
-- **Fallback Aéreo (Crow-fly):** Se o caminho estiver bloqueado (ex: montanha intransponível) ou muito distante para o algoritmo processar no tempo limite, o mod automaticamente cria uma rota reta e elevada apontando diretamente para o destino.
-- **Armazenamento Persistente:** Waypoints são salvos em um arquivo JSON local na pasta de configurações do seu Minecraft.
-- **Limpeza automática de rota:** A trilha desaparece gradativamente atrás de você à medida que você caminha por ela.
+- **Totalmente Server-Side:** Não requer mod no cliente! Os jogadores conseguem ver a trilha brilhante e usar todos os comandos usando o cliente vanilla do Minecraft.
+- **Pathfinding em Chunks Offline:** Calcula caminhos mesmo em chunks descarregados ou não explorados lendo diretamente os arquivos de região `.mca` do disco do servidor de forma assíncrona.
+- **Navegação visual (Trilha Brilhante):** Partículas guiam você pelo caminho correto, contornando obstáculos, descendo precipícios e subindo blocos.
+- **Waypoints do Servidor (Globais):** Operadores (OPs) podem registrar pontos globais (como `/spawn`, `/vila`) que qualquer jogador pode visualizar e navegar.
+- **Prompts Interativos (Sem Emotes & Seguros):** Ações clicáveis no chat com confirmação de sobrescrita, confirmação de exclusão e resolução inteligente de conflitos quando um waypoint pessoal e um do servidor possuem o mesmo nome.
+- **Pathfinding A\* otimizado:** Roda em Virtual Threads com limite aumentado (400k nós) e tempo limite de 8 segundos, garantindo que a thread principal do servidor **nunca trave**.
+- **Fallback e Extensão Aérea:** Gera uma linha reta elevada se o A* falhar, ou estende um caminho terrestre parcial com uma linha reta aérea para guiar você até o destino final.
+- **Armazenamento Persistente:** Waypoints salvos em formato JSON por jogador e por servidor na pasta `config` do servidor.
+- **Limpeza automática de rota:** A trilha desaparece gradativamente atrás de você à medida que você caminha.
 
 ### 🎮 Comandos
 
@@ -92,29 +99,33 @@ Todos os comandos ficam sob a raiz `/gps`. O mod utiliza a API de comandos do Fa
 | Comando | Descrição |
 |---------|-----------|
 | `/gps <nome>` | Atalho para `/gps go <nome>`. Navegue instantaneamente! |
-| `/gps add <nome> [estilo]` | Salva a sua posição atual. Estilos opcionais: `glow`, `fire`, `soul`, `end`, `emerald`. |
-| `/gps addpos <nome> <x> <y> <z> [estilo]` | Salva coordenadas específicas como um waypoint. |
-| `/gps list` | Lista waypoints com botões clícaveis `[▶ Go]`, `[📤 Share]` e `[✗ Remove]`. |
-| `/gps go <nome>` | Mostra a trilha de partículas até o waypoint. |
-| `/gps share <nome>` | Compartilha o waypoint no chat público com botão `[+ Add Waypoint]`. |
-| `/gps remove <nome>` | Deleta um waypoint salvo (com confirmação). |
+| `/gps add <nome>` | Salva a sua posição atual como um waypoint pessoal. |
+| `/gps addpos <nome> <x> <y> <z> <dimensão> <estilo>` | Salva coordenadas específicas como um waypoint pessoal. |
+| `/gps list` | Lista waypoints pessoais e de servidor com botões clicáveis `[Ir]`, `[Compartilhar]` e `[Remover]` (OP para globais). |
+| `/gps go <nome> [escopo]` | Mostra a trilha de partículas até o waypoint. |
+| `/gps share <nome> [escopo]` | Compartilha o waypoint no chat público com botão `[Adicionar]`. |
+| `/gps remove <nome>` | Deleta um waypoint pessoal salvo (com confirmação). |
 | `/gps clear` | Limpa a trilha visual atual da tela. |
+| `/gps server list` | Lista todos os waypoints globais do servidor. |
+| `/gps server add <nome>` | Salva a posição atual como waypoint global do servidor (apenas OP). |
+| `/gps server addpos <nome> <x> <y> <z> <dimensão> <estilo>` | Salva coordenadas como waypoint global do servidor (apenas OP). |
+| `/gps server remove <nome>` | Deleta um waypoint global do servidor (apenas OP). |
 | `/gps` ou `/gps help` | Exibe o menu de ajuda de comandos dentro do jogo. |
 
-### 🛠️ Como Instalar (Jogadores)
+### 🛠️ Como Instalar (Servidores)
 
-1. Instale o [Fabric Loader](https://fabricmc.net/use/installer/) para Minecraft **26.1.x**.
-2. Baixe o [Fabric API](https://modrinth.com/mod/fabric-api) (versão compatível com 26.1).
-3. Coloque o `.jar` do Fabric API e o `.jar` do LumenGPS na sua pasta `mods` (`%appdata%/.minecraft/mods`).
-4. Abra o jogo e use `/gps`!
+1. Instale o [Fabric Loader](https://fabricmc.net/use/installer/) no seu servidor compatível com Minecraft **26.2**.
+2. Baixe o [Fabric API](https://modrinth.com/mod/fabric-api) (versão compatível com 26.2).
+3. Coloque o `.jar` do Fabric API e o `.jar` do LumenGPS na pasta `mods` do seu servidor.
+4. Inicie o servidor e divirta-se! Os jogadores podem se conectar com clientes vanilla e usar todos os recursos.
 
 ### 💻 Desenvolvimento (Programadores)
 
-LumenGPS é construído utilizando as ferramentas modernas de modding do ecossistema Fabric para Minecraft 26.1+ (código *unobfuscated*).
+LumenGPS é construído utilizando as ferramentas modernas de modding do ecossistema Fabric para Minecraft 26.2+ (código *unobfuscated*).
 
 #### Pré-requisitos
 - **Java 25** (JDK)
-- Minecraft 26.1.2 (configurado no Gradle)
+- Minecraft 26.2 (configurado no Gradle)
 
 #### Setup
 1. Clone o repositório:
@@ -123,7 +134,6 @@ LumenGPS é construído utilizando as ferramentas modernas de modding do ecossis
    cd MinecraftWaypointMod
    ```
 2. Reconstrua e gere os arquivos do VS Code / IntelliJ:
-   O projeto já inclui as configurações nativas para compilar usando o Gradle Wrapper.
    ```bash
    .\gradlew.bat genSources
    ```
@@ -131,5 +141,3 @@ LumenGPS é construído utilizando as ferramentas modernas de modding do ecossis
 #### Scripts Úteis (Gradle)
 - `.\gradlew.bat build` - Compila o projeto e gera o `.jar` em `build/libs/`.
 - `.\gradlew.bat runClient` - Inicia um cliente Minecraft de testes com o mod já injetado.
-
-> **Dica para VS Code:** O projeto contém uma task `LumenGPS: Watch` (Ctrl+Shift+P > Run Task) que fica rodando em background e reconstrói o mod sempre que você salva um arquivo `.java`.
