@@ -25,8 +25,8 @@ public final class Pathfinder {
     /** Safety cap: abort search after this many expanded nodes. */
     private static final int MAX_NODES = 100_000;
 
-    /** Wall-clock time limit per search (milliseconds). */
-    private static final long MAX_TIME_MS = 3_000;
+    /** Wall-clock time limit per search (milliseconds). Increased to allow disk reads. */
+    private static final long MAX_TIME_MS = 8_000;
 
     /** Spacing between interpolated waypoints (in blocks). */
     private static final double POINT_SPACING = 0.5;
@@ -61,7 +61,12 @@ public final class Pathfinder {
         Thread.ofVirtual()
                 .name("lumengps-pathfinder")
                 .start(() -> {
-                    PathResult result = runAStar(world, start, goal, isElytraMode);
+                    // Wrap the ServerLevel in an OfflineChunkBlockGetter so the A* can
+                    // read block states from chunks that are not currently loaded in
+                    // memory, by falling back to the region files on disk.
+                    com.lumengps.util.OfflineChunkBlockGetter blockGetter =
+                            new com.lumengps.util.OfflineChunkBlockGetter(world);
+                    PathResult result = runAStar(blockGetter, start, goal, isElytraMode);
                     world.getServer().execute(() -> callback.accept(result));
                 });
     }
