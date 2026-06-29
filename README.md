@@ -30,7 +30,7 @@ All commands are under the `/gps` root. The mod uses the Fabric command API, off
 |---------|-------------|
 | `/gps <name>` | Shortcut for `/gps go <name>`. Navigate instantly! |
 | `/gps add <name>` | Saves your current position as a personal waypoint. |
-| `/gps addpos <name> <x> <y> <z> <dimension> <style>` | Saves specific coordinates as a personal waypoint. |
+| `/gps addcord <name> <coordinates>` | Saves specific coordinates as a personal waypoint. |
 | `/gps list` | Lists personal and server waypoints with clickable `[Ir]`, `[Compartilhar]`, and `[Remover]` (OP only) buttons. |
 | `/gps go <name> [scope]` | Calculates and displays the particle trail to the waypoint. |
 | `/gps share <name> [scope]` | Shares the waypoint in public chat with an `[Adicionar]` button. |
@@ -38,7 +38,7 @@ All commands are under the `/gps` root. The mod uses the Fabric command API, off
 | `/gps clear` | Clears the active visual trail from the screen. |
 | `/gps server list` | Lists all server-wide waypoints. |
 | `/gps server add <name>` | Saves current position as a server-wide waypoint (OP only). |
-| `/gps server addpos <name> <x> <y> <z> <dimension> <style>` | Saves coordinates as a server-wide waypoint (OP only). |
+| `/gps server addcord <name> <coordinates>` | Saves coordinates as a server-wide waypoint (OP only). |
 | `/gps server remove <name>` | Deletes a server-wide waypoint (OP only). |
 | `/gps` or `/gps help` | Shows the in-game command help menu. |
 
@@ -100,7 +100,7 @@ Todos os comandos ficam sob a raiz `/gps`. O mod utiliza a API de comandos do Fa
 |---------|-----------|
 | `/gps <nome>` | Atalho para `/gps go <nome>`. Navegue instantaneamente! |
 | `/gps add <nome>` | Salva a sua posição atual como um waypoint pessoal. |
-| `/gps addpos <nome> <x> <y> <z> <dimensão> <estilo>` | Salva coordenadas específicas como um waypoint pessoal. |
+| `/gps addcord <nome> <coordenadas>` | Salva coordenadas específicas como um waypoint pessoal. |
 | `/gps list` | Lista waypoints pessoais e de servidor com botões clicáveis `[Ir]`, `[Compartilhar]` e `[Remover]` (OP para globais). |
 | `/gps go <nome> [escopo]` | Mostra a trilha de partículas até o waypoint. |
 | `/gps share <nome> [escopo]` | Compartilha o waypoint no chat público com botão `[Adicionar]`. |
@@ -108,7 +108,7 @@ Todos os comandos ficam sob a raiz `/gps`. O mod utiliza a API de comandos do Fa
 | `/gps clear` | Limpa a trilha visual atual da tela. |
 | `/gps server list` | Lista todos os waypoints globais do servidor. |
 | `/gps server add <nome>` | Salva a posição atual como waypoint global do servidor (apenas OP). |
-| `/gps server addpos <nome> <x> <y> <z> <dimensão> <estilo>` | Salva coordenadas como waypoint global do servidor (apenas OP). |
+| `/gps server addcord <nome> <coordenadas>` | Salva coordenadas como waypoint global do servidor (apenas OP). |
 | `/gps server remove <nome>` | Deleta um waypoint global do servidor (apenas OP). |
 | `/gps` ou `/gps help` | Exibe o menu de ajuda de comandos dentro do jogo. |
 

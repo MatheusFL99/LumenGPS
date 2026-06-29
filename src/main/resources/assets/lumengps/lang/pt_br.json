@@ -14,7 +14,7 @@
   "lumengps.command.death_waypoint_saved": "Local da morte salvo como waypoint §e'death'§r.",
   "lumengps.command.help.header": "§e=== Comandos LumenGPS ===§r",
   "lumengps.command.help.add": "§b/gps add <nome> [estilo]§r - Salva a sua posição atual.",
-  "lumengps.command.help.addpos": "§b/gps addpos <nome> <x> <y> <z> [estilo]§r - Salva coordenadas específicas.",
+  "lumengps.command.help.addcord": "§b/gps addcord <nome> <coordenadas>§r - Salva coordenadas específicas.",
   "lumengps.command.help.go": "§b/gps go <nome>§r - Mostra a trilha até o waypoint.",
   "lumengps.command.help.list": "§b/gps list§r - Lista seus waypoints salvos.",
   "lumengps.command.help.remove": "§b/gps remove <nome>§r - Deleta um waypoint.",

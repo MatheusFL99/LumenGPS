@@ -85,7 +85,7 @@ Waypoints are **not** stored in a single `waypoints.json`. The world id is compu
 
 ## `/gps` command quirks
 
-- `/gps <name>` is a shortcut for `/gps go <name>`. The shortcut suggestions **must filter out the sub-command keywords** (`help, add, addpos, go, remove, remove_confirm, share, clear, list, server, config`) so they don't shadow real commands.
+- `/gps <name>` is a shortcut for `/gps go <name>`. The shortcut suggestions **must filter out the sub-command keywords** (`help, add, addcord, go, remove, remove_confirm, share, clear, list, server, config`) so they don't shadow real commands.
 - `/gps remove <name>` does **not** delete; it prints an inline confirmation with `[Sim]` / `[Cancelar]` buttons. The actual delete is triggered by the internal `/gps remove_confirm <name>` (`GpsCommand.java`). Do not collapse these or you break the safety prompt.
 - `/gps share <name>` sends a **plain-text** public chat message — no `§` color codes, no rich components. The format is parsed by a regex in `LumenGPS` or custom chat listener (if registered).
 - Dimension mismatch (`/gps go` to a waypoint in a different dimension) returns an error rather than computing a path.

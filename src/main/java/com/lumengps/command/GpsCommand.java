@@ -13,6 +13,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -44,7 +45,7 @@ public final class GpsCommand {
                     .suggests((ctx, builder) -> {
                         try {
                             ServerPlayer player = ctx.getSource().getPlayerOrException();
-                            List<String> subCmds = List.of("help", "add", "addpos", "add_overwrite", "add_overwrite_cancel", "go", "remove", "remove_confirm", "share", "clear", "list", "config", "server");
+                            List<String> subCmds = List.of("help", "add", "addcord", "add_overwrite", "add_overwrite_cancel", "go", "remove", "remove_confirm", "share", "clear", "list", "config", "server");
                             String rem = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
                             WaypointManager.get(player.getUUID()).listNames().stream()
                                 .filter(n -> !subCmds.contains(n.toLowerCase(java.util.Locale.ROOT)))
@@ -107,27 +108,16 @@ public final class GpsCommand {
                         })
                     )
                 )
-                // /gps addpos <name> <x> <y> <z> <dim> <style>
-                .then(Commands.literal("addpos")
+                // /gps addcord <name> <coordinates>
+                .then(Commands.literal("addcord")
                     .then(Commands.argument("name", StringArgumentType.string())
-                        .then(Commands.argument("x", IntegerArgumentType.integer())
-                            .then(Commands.argument("y", IntegerArgumentType.integer())
-                                .then(Commands.argument("z", IntegerArgumentType.integer())
-                                    .then(Commands.argument("dim", StringArgumentType.string())
-                                        .then(Commands.argument("style", StringArgumentType.word())
-                                            .executes(ctx -> {
-                                                String n = StringArgumentType.getString(ctx, "name");
-                                                int x = IntegerArgumentType.getInteger(ctx, "x");
-                                                int y = IntegerArgumentType.getInteger(ctx, "y");
-                                                int z = IntegerArgumentType.getInteger(ctx, "z");
-                                                String dim = StringArgumentType.getString(ctx, "dim");
-                                                String style = StringArgumentType.getString(ctx, "style");
-                                                return addWaypoint(ctx.getSource(), n, new BlockPos(x, y, z), dim, style);
-                                            })
-                                        )
-                                    )
-                                )
-                            )
+                        .then(Commands.argument("coordinates", BlockPosArgument.blockPos())
+                            .executes(ctx -> {
+                                ServerPlayer p = ctx.getSource().getPlayerOrException();
+                                String n = StringArgumentType.getString(ctx, "name");
+                                BlockPos pos = BlockPosArgument.getBlockPos(ctx, "coordinates");
+                                return addWaypoint(ctx.getSource(), n, pos, p.level().dimension().identifier().toString(), "glow");
+                            })
                         )
                     )
                 )
@@ -393,26 +383,15 @@ public final class GpsCommand {
                             })
                         )
                     )
-                    .then(Commands.literal("addpos").requires(src -> isOp(src))
+                    .then(Commands.literal("addcord").requires(src -> isOp(src))
                         .then(Commands.argument("name", StringArgumentType.string())
-                            .then(Commands.argument("x", IntegerArgumentType.integer())
-                                .then(Commands.argument("y", IntegerArgumentType.integer())
-                                    .then(Commands.argument("z", IntegerArgumentType.integer())
-                                        .then(Commands.argument("dim", StringArgumentType.string())
-                                            .then(Commands.argument("style", StringArgumentType.word())
-                                                .executes(ctx -> {
-                                                    String n = StringArgumentType.getString(ctx, "name");
-                                                    int x = IntegerArgumentType.getInteger(ctx, "x");
-                                                    int y = IntegerArgumentType.getInteger(ctx, "y");
-                                                    int z = IntegerArgumentType.getInteger(ctx, "z");
-                                                    String dim = StringArgumentType.getString(ctx, "dim");
-                                                    String style = StringArgumentType.getString(ctx, "style");
-                                                    return addServerWaypoint(ctx.getSource(), n, new BlockPos(x, y, z), dim, style);
-                                                })
-                                            )
-                                        )
-                                    )
-                                )
+                            .then(Commands.argument("coordinates", BlockPosArgument.blockPos())
+                                .executes(ctx -> {
+                                    ServerPlayer p = ctx.getSource().getPlayerOrException();
+                                    String n = StringArgumentType.getString(ctx, "name");
+                                    BlockPos pos = BlockPosArgument.getBlockPos(ctx, "coordinates");
+                                    return addServerWaypoint(ctx.getSource(), n, pos, p.level().dimension().identifier().toString(), "glow");
+                                })
                             )
                         )
                     )
@@ -527,7 +506,8 @@ public final class GpsCommand {
 
     private static void sendHelp(CommandSourceStack source) {
         source.sendSuccess(() -> Component.literal("§b=== Ajuda do LumenGPS ===§r\n" +
-                "/gps add <nome> - Salvar waypoint\n" +
+                "/gps add <nome> - Salvar waypoint na posição atual\n" +
+                "/gps addcord <nome> <x y z> - Salvar coordenadas específicas\n" +
                 "/gps go <nome> - Navegar até waypoint\n" +
                 "/gps clear - Limpar rota atual\n" +
                 "/gps list - Listar waypoints\n" +
@@ -699,7 +679,7 @@ public final class GpsCommand {
             // Build the command that other players will click to add this waypoint.
             // name and dim use StringArgumentType.string(), so they need to be quoted.
             // style uses StringArgumentType.word(), so no quotes needed.
-            String cmd = String.format("/gps addpos \"%s\" %d %d %d \"%s\" %s",
+            String cmd = String.format("/gps add_overwrite \"%s\" %d %d %d \"%s\" %s",
                     name.replace("\"", "\\\""), // escape any quotes in the name
                     wp.pos().getX(), wp.pos().getY(), wp.pos().getZ(),
                     wp.dimension(), wp.style());
