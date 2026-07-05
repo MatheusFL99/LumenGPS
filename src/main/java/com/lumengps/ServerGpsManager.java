@@ -78,7 +78,7 @@ public final class ServerGpsManager {
             Vec3 targetPos = routeData.targetPos();
 
             // 1. Check Arrival
-            if (targetPos != null && playerPos.distanceToSqr(targetPos) <= 6.25) { // 2.5 blocks radius
+            if (targetPos != null && playerPos.distanceToSqr(targetPos) <= 49.0) { // 7 blocks radius
                 player.sendSystemMessage(Component.literal("§b[LumenGPS]§r §aVocê chegou ao seu destino!§r"));
                 world.playSound(null, player.blockPosition(), SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.5f, 1.0f);
                 it.remove();
