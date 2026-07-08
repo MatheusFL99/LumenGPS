@@ -82,6 +82,7 @@ public final class GpsCommand {
                                         case "requireCompass" -> config.requireCompass = val;
                                         case "showHud" -> config.showHud = val;
                                         case "confirmOverwrite" -> config.confirmOverwrite = val;
+                                        case "enablePlayerTracking" -> config.enablePlayerTracking = val;
                                     }
                                     config.save();
                                     sendConfigMenu(ctx.getSource());
@@ -197,6 +198,25 @@ public final class GpsCommand {
                         .executes(ctx -> shareWaypoint(ctx.getSource(), StringArgumentType.getString(ctx, "name"), null))
                         .then(Commands.argument("scope", StringArgumentType.word())
                             .executes(ctx -> shareWaypoint(ctx.getSource(), StringArgumentType.getString(ctx, "name"), StringArgumentType.getString(ctx, "scope"))))
+                    )
+                )
+
+                // /gps follow <player>
+                .then(Commands.literal("follow")
+                    .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            try {
+                                ServerPlayer sender = ctx.getSource().getPlayerOrException();
+                                String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+                                ctx.getSource().getServer().getPlayerList().getPlayers().stream()
+                                    .filter(p -> !p.equals(sender))
+                                    .map(ServerPlayer::getScoreboardName)
+                                    .filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
+                                    .forEach(builder::suggest);
+                            } catch (Exception e) {}
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> followPlayer(ctx.getSource(), StringArgumentType.getString(ctx, "player")))
                     )
                 )
 
@@ -490,6 +510,7 @@ public final class GpsCommand {
         text.append(makeToggleRow("Requer Bússola", "requireCompass", c.requireCompass));
         text.append(makeToggleRow("Mostrar HUD (Actionbar)", "showHud", c.showHud));
         text.append(makeToggleRow("Confirmar Sobrescrita", "confirmOverwrite", c.confirmOverwrite));
+        text.append(makeToggleRow("Rastreamento de Jogadores", "enablePlayerTracking", c.enablePlayerTracking));
         source.sendSuccess(() -> text, false);
     }
 
@@ -509,6 +530,7 @@ public final class GpsCommand {
                 "/gps add <nome> - Salvar waypoint na posição atual\n" +
                 "/gps addcord <nome> <x y z> - Salvar coordenadas específicas\n" +
                 "/gps go <nome> - Navegar até waypoint\n" +
+                "/gps follow <jogador> - Rastrear jogador em tempo real\n" +
                 "/gps clear - Limpar rota atual\n" +
                 "/gps list - Listar waypoints\n" +
                 "/gps config - Abrir menu de configurações"), false);
@@ -690,6 +712,63 @@ public final class GpsCommand {
                     .withHoverEvent(new HoverEvent.ShowText(Component.literal("Clique para adicionar este waypoint ao seu GPS")))));
                     
             source.getServer().getPlayerList().broadcastSystemMessage(msg, false);
+        } catch (Exception e) {}
+        return 1;
+    }
+
+    private static int followPlayer(CommandSourceStack source, String targetName) {
+        try {
+            // Check if player tracking is enabled
+            if (!GpsConfig.getInstance().enablePlayerTracking) {
+                source.sendFailure(Component.literal(PREFIX + "Rastreamento de jogadores desabilitado."));
+                return 0;
+            }
+
+            ServerPlayer sender = source.getPlayerOrException();
+
+            // Find target player
+            ServerPlayer target = source.getServer().getPlayerList().getPlayerByName(targetName);
+            if (target == null) {
+                source.sendFailure(Component.literal(PREFIX + "Jogador '" + targetName + "' não encontrado ou offline."));
+                return 0;
+            }
+
+            // Cannot track yourself
+            if (target.equals(sender)) {
+                source.sendFailure(Component.literal(PREFIX + "Você não pode rastrear a si mesmo."));
+                return 0;
+            }
+
+            // Check dimension match
+            if (!target.level().dimension().equals(sender.level().dimension())) {
+                source.sendFailure(Component.literal(PREFIX + "Jogador está em uma dimensão diferente."));
+                return 0;
+            }
+
+            // Calculate path asynchronously
+            source.sendSuccess(() -> Component.literal(PREFIX + "Calculando rota até " + targetName + "..."), false);
+
+            Pathfinder.computeAsync(
+                (ServerLevel) sender.level(),
+                sender.blockPosition(),
+                target.blockPosition(),
+                false,
+                result -> {
+                    if (result.points().isEmpty()) {
+                        source.sendFailure(Component.literal(PREFIX + "Não foi possível encontrar um caminho."));
+                    } else {
+                        ServerGpsManager.getInstance().setTrackingRoute(
+                            sender.getUUID(),
+                            result.points(),
+                            targetName,
+                            result.points().get(result.points().size() - 1),
+                            "glow",
+                            target.getUUID()
+                        );
+                        source.sendSuccess(() -> Component.literal(PREFIX + "Rota para '" + targetName + "' calculada! Atualizando a cada 5s."), false);
+                    }
+                }
+            );
         } catch (Exception e) {}
         return 1;
     }

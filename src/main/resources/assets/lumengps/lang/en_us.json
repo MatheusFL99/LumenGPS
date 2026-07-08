@@ -37,5 +37,14 @@
   "lumengps.command.add_overwrite_yes_hint": "Click to overwrite '%s'",
   "lumengps.command.add_overwrite_cancel_hint": "Cancel — keep the existing waypoint",
   "lumengps.command.add_overwrite_done": "Waypoint §e'%s'§r overwritten.",
-  "lumengps.command.add_overwrite_expired": "This confirmation has expired."
+  "lumengps.command.add_overwrite_expired": "This confirmation has expired.",
+  "lumengps.command.follow.started": "Route to §e%s§r started! Updating every 5s.",
+  "lumengps.command.follow.stopped": "Tracking route cleared.",
+  "lumengps.command.follow.player_offline": "Player §e%s§r went offline. Route cancelled.",
+  "lumengps.command.follow.dimension_changed": "Player §e%s§r changed dimension. Route cancelled.",
+  "lumengps.command.follow.not_found": "Player §e%s§r not found or offline.",
+  "lumengps.command.follow.self_track": "You cannot track yourself.",
+  "lumengps.command.follow.disabled": "Player tracking is disabled on this server.",
+  "lumengps.command.follow.dimension_mismatch": "Player is in a different dimension.",
+  "lumengps.command.help.follow": "§b/gps follow <player>§r - Route to another player in real-time."
 }

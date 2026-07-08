@@ -26,6 +26,7 @@ public class GpsConfig {
     public boolean requireCompass = false;
     public boolean showHud = true;
     public boolean confirmOverwrite = true;
+    public boolean enablePlayerTracking = true;
 
     private GpsConfig() {}
 

@@ -1,6 +1,7 @@
 package com.lumengps;
 
 import com.lumengps.data.GpsConfig;
+import com.lumengps.pathfinding.Pathfinder;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.network.chat.Component;
@@ -28,8 +29,10 @@ public final class ServerGpsManager {
     private static final double RENDER_RADIUS = 30.0;
     private static final int TICK_INTERVAL = 2;
     private static final double WAYPOINT_SNAP_DISTANCE = 2.5;
+    private static final long RECALC_INTERVAL_MS = 5_000;
 
-    public record ActiveRoute(List<Vec3> route, String targetName, Vec3 targetPos, boolean isElytra, String style) {}
+    public record ActiveRoute(List<Vec3> route, String targetName, Vec3 targetPos, boolean isElytra, String style,
+                              UUID trackedPlayerUUID, long lastRecalcTime) {}
 
     private final Map<UUID, ActiveRoute> activeRoutes = new ConcurrentHashMap<>();
     private int tickCounter = 0;
@@ -40,7 +43,15 @@ public final class ServerGpsManager {
         if (route.isEmpty()) {
             clear(playerId);
         } else {
-            activeRoutes.put(playerId, new ActiveRoute(new ArrayList<>(route), targetName, targetPos, isElytra, style));
+            activeRoutes.put(playerId, new ActiveRoute(new ArrayList<>(route), targetName, targetPos, isElytra, style, null, 0));
+        }
+    }
+
+    public void setTrackingRoute(UUID playerId, List<Vec3> route, String targetName, Vec3 targetPos, String style, UUID trackedPlayerUUID) {
+        if (route.isEmpty()) {
+            clear(playerId);
+        } else {
+            activeRoutes.put(playerId, new ActiveRoute(new ArrayList<>(route), targetName, targetPos, false, style, trackedPlayerUUID, System.currentTimeMillis()));
         }
     }
 
@@ -75,6 +86,104 @@ public final class ServerGpsManager {
 
             ServerLevel world = (ServerLevel) player.level();
             Vec3 playerPos = player.position();
+
+            // Handle player-tracking routes
+            if (routeData.trackedPlayerUUID() != null) {
+                ServerPlayer trackedPlayer = server.getPlayerList().getPlayer(routeData.trackedPlayerUUID());
+
+                // Tracked player went offline
+                if (trackedPlayer == null) {
+                    player.sendSystemMessage(Component.literal("§b[LumenGPS]§r Jogador '" + routeData.targetName() + "' ficou offline. Rota cancelada."));
+                    it.remove();
+                    continue;
+                }
+
+                // Tracked player changed dimension
+                if (!trackedPlayer.level().dimension().equals(player.level().dimension())) {
+                    player.sendSystemMessage(Component.literal("§b[LumenGPS]§r Jogador '" + routeData.targetName() + "' mudou de dimensão. Rota cancelada."));
+                    it.remove();
+                    continue;
+                }
+
+                // Update target position to tracked player's current position
+                Vec3 newTargetPos = trackedPlayer.position();
+
+                // Recalculate path every 5 seconds
+                long now = System.currentTimeMillis();
+                if (now - routeData.lastRecalcTime() >= RECALC_INTERVAL_MS) {
+                    Vec3 finalTargetPos = newTargetPos;
+                    Pathfinder.computeAsync(
+                        world,
+                        player.blockPosition(),
+                        trackedPlayer.blockPosition(),
+                        false,
+                        result -> {
+                            if (!result.points().isEmpty()) {
+                                activeRoutes.put(playerId, new ActiveRoute(
+                                    new ArrayList<>(result.points()),
+                                    routeData.targetName(),
+                                    finalTargetPos,
+                                    false,
+                                    routeData.style(),
+                                    routeData.trackedPlayerUUID(),
+                                    System.currentTimeMillis()
+                                ));
+                            }
+                        }
+                    );
+                } else {
+                    // Update targetPos even without recalc for accurate arrival/HUD
+                    activeRoutes.put(playerId, new ActiveRoute(
+                        routeData.route(),
+                        routeData.targetName(),
+                        newTargetPos,
+                        false,
+                        routeData.style(),
+                        routeData.trackedPlayerUUID(),
+                        routeData.lastRecalcTime()
+                    ));
+                }
+
+                // Use updated targetPos for arrival check
+                Vec3 targetPos = newTargetPos;
+
+                // 1. Check Arrival (closer radius for tracking: 3 blocks)
+                if (playerPos.distanceToSqr(targetPos) <= 9.0) {
+                    player.sendSystemMessage(Component.literal("§b[LumenGPS]§r §aVocê alcançou " + routeData.targetName() + "!§r"));
+                    world.playSound(null, player.blockPosition(), SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.5f, 1.0f);
+                    it.remove();
+                    continue;
+                }
+
+                // 2. HUD / Actionbar
+                if (GpsConfig.getInstance().showHud) {
+                    int dist = (int) Math.round(Math.sqrt(playerPos.distanceToSqr(targetPos)));
+                    player.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(Component.literal("§bLumenGPS: §e" + dist + "m §7(" + routeData.targetName() + " - seguindo)")));
+                }
+
+                // 3. Advance route
+                advanceRoute(player, routeData.route());
+
+                // 4. Spawn Particles
+                if (shouldSpawnParticles) {
+                    SimpleParticleType pt = switch (routeData.style()) {
+                        case "fire" -> ParticleTypes.FLAME;
+                        case "soul" -> ParticleTypes.SOUL_FIRE_FLAME;
+                        case "end" -> ParticleTypes.END_ROD;
+                        case "emerald" -> ParticleTypes.HAPPY_VILLAGER;
+                        default -> ParticleTypes.GLOW;
+                    };
+
+                    double radiusSq = RENDER_RADIUS * RENDER_RADIUS;
+                    for (Vec3 point : routeData.route()) {
+                        if (playerPos.distanceToSqr(point) > radiusSq) continue;
+                        world.sendParticles(player, pt, true, true, point.x, point.y, point.z, 1, 0.0, pt == ParticleTypes.GLOW ? 0.02 : 0.0, 0.0, 0.0);
+                    }
+                }
+
+                continue;
+            }
+
             Vec3 targetPos = routeData.targetPos();
 
             // 1. Check Arrival

@@ -42,10 +42,10 @@ All under `com.lumengps` (note the spelling, not `lumengps`):
 ```
 src/main/java/com/lumengps/
   LumenGPS.java          # common entry (ModInitializer) — registers commands, ticks and disconnect events
-  ServerGpsManager.java  # singleton; manages active routes and triggers per-tick particle rendering
+  ServerGpsManager.java  # singleton; manages active routes (static + player tracking) and triggers per-tick particle rendering
   command/GpsCommand.java        # /gps Brigadier tree (handles scopes and options)
   data/Waypoint.java             # record: pos, dimension, style
-  data/WaypointManager.java      # singleton; per-world JSON persistence
+  data/WaypointManager.java      # per-player UUID JSON persistence (get/unload by UUID)
   data/ServerWaypointManager.java # singleton; global server waypoints persistence
   data/GpsConfig.java            # singleton; mod config (intelligentMode, allowWater, …)
   pathfinding/Pathfinder.java    # async A* (Virtual Thread) with crow-fly fallback/continuation
@@ -59,47 +59,40 @@ src/main/resources/
   assets/lumengps/lang/{en_us,pt_br}.json
 ```
 
-## Three distinct config locations
+## Config & persistence locations
 
 The mod writes to **three different paths**:
 
-1. **Mod config** → `<minecraft>/config/lumengps.json`
-   Written/read by `GpsConfig` (`GpsConfig.java:17`). Holds flags: `intelligentMode`, `allowWater`, `allowLava`, `enableDeathWaypoint`, `enableLightPillar`, `requireCompass`, `showHud`. Uses Fabric's config dir.
-2. **Per-world waypoints** → `<minecraft>/config/lumengps/waypoints_<worldId>.json`
-   Written/read by `WaypointManager` (`WaypointManager.java:52,125`). One file **per world/server** — see "Multi-world storage" below. Subdirectory, not the same file as the mod config.
-3. **Server waypoints (Global)** → `<minecraft>/config/lumengps/server_waypoints.json`
-   Written/read by `ServerWaypointManager` (`ServerWaypointManager.java:17`). Holds server-wide waypoints.
-
-`GpsConfig.getInstance()` lazy-loads; `WaypointManager.getInstance()` is a true singleton built at class load.
-`ServerWaypointManager.getInstance()` is initialized after other static variables to avoid JVM class loading order `NullPointerException`.
-
-## Multi-world storage (regression-prone)
-
-Waypoints are **not** stored in a single `waypoints.json`. The world id is computed in `ServerGpsManager.getWorldId` or similar player tracking:
-
-- Multiplayer: `multiplayer_<server_ip>` (colons → underscores, non `[a-zA-Z0-9_-]` stripped).
-- Singleplayer: `singleplayer_<level_name>` (sanitized to `[a-zA-Z0-9_-]`).
-- Unknown / pre-join: `unknown`.
-
-`WaypointManager.load(worldId)` is called on player connection join; `clear()` is called on player connection `DISCONNECT`. If you change how the world id is computed you will **silently lose access to existing waypoints**.
+1. **Mod config** → `config/lumengps.json`
+   Written/read by `GpsConfig` (`GpsConfig.java:17`). Holds flags: `intelligentMode`, `allowWater`, `allowLava`, `enableDeathWaypoint`, `enableLightPillar`, `requireCompass`, `showHud`, `confirmOverwrite`, `enablePlayerTracking`. Uses Fabric's config dir.
+2. **Per-player waypoints** → `config/lumengps/waypoints/<player_uuid>.json`
+   Written/read by `WaypointManager`. One file **per player UUID** — `WaypointManager.get(uuid)` returns the manager, `WaypointManager.unload(uuid)` frees it on disconnect. The `gui/` and `renderer/` directories exist but are empty placeholders.
+3. **Server waypoints (Global)** → `config/lumengps/server_waypoints.json`
+   Written/read by `ServerWaypointManager`. Holds server-wide waypoints, managed via `/gps server` subcommands.
 
 ## `/gps` command quirks
 
-- `/gps <name>` is a shortcut for `/gps go <name>`. The shortcut suggestions **must filter out the sub-command keywords** (`help, add, addcord, go, remove, remove_confirm, share, clear, list, server, config`) so they don't shadow real commands.
+- `/gps <name>` is a shortcut for `/gps go <name>`. The shortcut suggestions **must filter out the sub-command keywords** (`help, add, addcord, add_overwrite, add_overwrite_cancel, go, remove, remove_confirm, share, clear, list, server, config`) so they don't shadow real commands.
 - `/gps remove <name>` does **not** delete; it prints an inline confirmation with `[Sim]` / `[Cancelar]` buttons. The actual delete is triggered by the internal `/gps remove_confirm <name>` (`GpsCommand.java`). Do not collapse these or you break the safety prompt.
-- `/gps share <name>` sends a **plain-text** public chat message — no `§` color codes, no rich components. The format is parsed by a regex in `LumenGPS` or custom chat listener (if registered).
+- `/gps share <name>` sends a **rich chat message** with clickable `[Adicionar]` button. Uses `Component.literal` with `§` color codes and `ClickEvent.RunCommand` to let other players click to add the shared waypoint. Format is broadcast via `broadcastSystemMessage`.
+- `/gps go <name>` and `/gps share <name>` support a `scope` argument (`personal` or `server`). When both a personal and server waypoint share the same name and no scope is given, the player is prompted to choose.
+- `/gps server` subcommands (add, addcord, add_overwrite, remove, remove_confirm, list) manage global server waypoints. `add*` and `remove*` require op (`Permissions.COMMANDS_GAMEMASTER`).
 - Dimension mismatch (`/gps go` to a waypoint in a different dimension) returns an error rather than computing a path.
 - Death waypoint (`enableDeathWaypoint`): auto-saves a waypoint named `death` with style `soul` at the player's position when health drops to 0.
 - `requireCompass` config flag: when true, `/gps go` requires a compass in main or off-hand.
+- `confirmOverwrite` config flag: when true (default), adding a waypoint with an existing name prompts the user to confirm before overwriting.
+- `/gps follow <player>` tracks another online player in real-time. The path recalculates every 5 seconds. If the tracked player goes offline or changes dimension, the route is cancelled with a notification. Tab-completion lists online players (excluding self). Requires `enablePlayerTracking` config to be true. Uses a tighter arrival radius (3 blocks vs 7 for static waypoints).
 
 ## Pathfinder contract
 
-`Pathfinder.computeAsync(world, start, goal, isElytraMode, callback)` (`Pathfinder.java`):
+`Pathfinder.computeAsync(ServerLevel world, BlockPos start, BlockPos goal, boolean isElytraMode, Consumer<PathResult> callback)` (`Pathfinder.java`):
 
 - Runs on a **Java 25 virtual thread** (`Thread.ofVirtual().name("lumengps-pathfinder").start(...)`). The main server tick thread is never blocked.
 - **Callback contract:** the consumer is invoked via `server.execute(...)`, so it always runs on the server main thread. Callers can safely touch world/entities from inside the callback. Do **not** touch them from the calling thread before the callback fires.
 - Safety guards: `MAX_NODES = 400_000`, `MAX_TIME_MS = 8_000`. The deadline check is throttled with `& 0xFF` — leaving that mask in place matters for performance.
+- `HEURISTIC_WEIGHT = 3.0` — weighted A* multiplier makes the search greedier (faster, less optimal path). Significant for understanding path behavior.
 - Crow-fly fallback (`Pathfinder.java`): if A* fails or is bounded out, returns a straight elevated line at `max(start.y, goal.y) + 8.0` or appends a crow-fly path starting from the last computed node.
+- The pathfinder wraps the `ServerLevel` in `OfflineChunkBlockGetter` so it can read block states from chunks not currently loaded in memory, by reading `.mca` region files on disk.
 
 ## No tests, no CI
 
@@ -116,3 +109,4 @@ Waypoints are **not** stored in a single `waypoints.json`. The world id is compu
 - Encoding is `UTF-8` (`build.gradle:44`); preserve it for any new resource files.
 - Lang keys live under `lumengps.command.*`, `lumengps.command.list.*`, `lumengps.command.share.*`, `lumengps.command.help.*`, etc. New user-facing strings should go to both `en_us.json` and `pt_br.json`.
 - `Waypoint` names are case-insensitive and stored lowercased. The dimension string uses the full `minecraft:overworld` / `minecraft:the_nether` / `minecraft:the_end` form; `GpsCommand.formatDim` handles the human-readable shortening.
+- Particle styles are selected by string key in `ServerGpsManager`: `fire`, `soul`, `end`, `emerald`, default `glow`.

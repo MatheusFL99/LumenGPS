@@ -37,5 +37,14 @@
   "lumengps.command.add_overwrite_yes_hint": "Clique para sobrescrever '%s'",
   "lumengps.command.add_overwrite_cancel_hint": "Cancelar — manter o waypoint atual",
   "lumengps.command.add_overwrite_done": "Waypoint §e'%s'§r substituído.",
-  "lumengps.command.add_overwrite_expired": "Esta confirmação expirou."
+  "lumengps.command.add_overwrite_expired": "Esta confirmação expirou.",
+  "lumengps.command.follow.started": "Rota para §e%s§r iniciada! Atualizando a cada 5s.",
+  "lumengps.command.follow.stopped": "Rota de rastreamento limpa.",
+  "lumengps.command.follow.player_offline": "Jogador §e%s§r ficou offline. Rota cancelada.",
+  "lumengps.command.follow.dimension_changed": "Jogador §e%s§r mudou de dimensão. Rota cancelada.",
+  "lumengps.command.follow.not_found": "Jogador §e%s§r não encontrado ou offline.",
+  "lumengps.command.follow.self_track": "Você não pode rastrear a si mesmo.",
+  "lumengps.command.follow.disabled": "Rastreamento de jogadores desabilitado neste servidor.",
+  "lumengps.command.follow.dimension_mismatch": "Jogador está em uma dimensão diferente.",
+  "lumengps.command.help.follow": "§b/gps follow <jogador>§r - Rota para outro jogador em tempo real."
 }
